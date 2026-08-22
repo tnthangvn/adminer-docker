@@ -124,6 +124,16 @@ number spinner for numerics, `true`/`false` for booleans, and the allowed labels
 for an enum. The operator also stops defaulting to `LIKE %%` on types where it
 makes no sense — until you pick one yourself, after which it is left alone.
 
+## Redis
+
+Upstream publishes a Redis driver, but only from 6.0.x — the 5.4.1 download has
+no such file. It talks RESP over `fsockopen` and asks nothing of PHP, so it runs
+against this core unchanged and ships here: keys list as rows with their type
+and value, one "table" per database number.
+
+Note that Redis 7 with a plain `requirepass` still wants a username, and it is
+`default`. Leaving it blank gets you `WRONGPASS`.
+
 ## MongoDB
 
 Adminer ships a MongoDB driver but leaves it switched off, and the official

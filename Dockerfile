@@ -59,6 +59,9 @@ WORKDIR /app
 
 COPY --from=upstream --chown=root:root /var/www/html/adminer.php ./adminer.php
 COPY --from=upstream --chown=root:root /var/www/html/plugins ./plugins
+# Upstream ships the Redis driver only from 6.0.x; it talks RESP over fsockopen
+# and needs nothing from PHP, so it runs against this core unchanged.
+COPY --chown=root:root src/plugins/drivers/redis.php ./plugins/drivers/redis.php
 COPY --chown=root:root src/index.php ./index.php
 # One structure layer, two token sets, served as separate files — so this
 # directory can be bind-mounted for live editing without a rebuild.

@@ -85,7 +85,7 @@ namespace Instrument {
      * add_driver() and declares its classes only for the driver in use, so
      * unlike a plugin there is nothing to instantiate.
      */
-    const DEFAULT_DRIVERS = 'mongo';
+    const DEFAULT_DRIVERS = 'mongo redis';
 
     function drivers(): void
     {
