@@ -128,7 +128,10 @@
 		ui.apply.hidden = !ranged();
 		ui.time.hidden = !withTime;
 		label();
-		ui.timeInput.value = withTime ? (timeOf(input.value) || '') : '';
+		// A timestamp column needs a time to be a timestamp. Show the midnight
+		// that is about to be written rather than leaving the box empty and
+		// silently storing a bare date.
+		ui.timeInput.value = withTime ? (timeOf(input.value) || '00:00:00') : '';
 
 		cal.hidden = false;
 		draw();
@@ -230,9 +233,17 @@
 		}
 	}
 
+	/** The value to write for a day: with the time of day when the column has one. */
+	function stamp(isoDate) {
+		if (ui.time.hidden) {
+			return isoDate;
+		}
+
+		return `${isoDate} ${ui.timeInput.value.trim() || '00:00:00'}`;
+	}
+
 	function pickDay(isoDate) {
-		const time = ui.time.hidden ? '' : ui.timeInput.value.trim();
-		field.value = time ? `${isoDate} ${time}` : isoDate;
+		field.value = stamp(isoDate);
 		fire(field);
 		draw();
 	}
@@ -250,7 +261,7 @@
 		const row = rowOf(field);
 		const column = row.querySelector('select[name$="[col]"]')?.value;
 
-		field.value = iso(start);
+		field.value = stamp(iso(start));
 		fire(field);
 		setOperator(row, '>=');
 
@@ -264,7 +275,7 @@
 			col.dispatchEvent(new Event('change', { bubbles: true }));
 
 			const val = spare.querySelector('input[name$="[val]"]');
-			val.value = iso(end);
+			val.value = stamp(iso(end));
 			fire(val);
 			setOperator(spare, '<');
 		}
