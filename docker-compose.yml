@@ -1,0 +1,26 @@
+services:
+  adminer:
+    build: .
+    image: adminer-instrument:5.4.1
+    container_name: adminer
+    restart: always
+    ports:
+      - "${ADMINER_PORT:-9006}:8080"
+    environment:
+      # dark | light | auto (follows the OS) | none
+      ADMINER_THEME: dark
+      # Prefills the login form. The password is never prefilled.
+      ADMINER_DEFAULT_DRIVER: pgsql
+      ADMINER_DEFAULT_SERVER: host.docker.internal:5432
+      ADMINER_DEFAULT_USERNAME: postgres
+      ADMINER_DEFAULT_DB: ""
+      # Concurrency for the built-in server. 1 disables workers.
+      PHP_CLI_SERVER_WORKERS: 4
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Nothing is written to the image at runtime, so it can run locked down.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true

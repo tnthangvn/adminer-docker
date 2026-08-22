@@ -1,0 +1,38 @@
+/* Instrument — Day
+   The same instrument under daylight: cool paper, ink text, burnt amber.
+   Not cream — cream reads as stationery; this is a panel with the lights on. */
+
+html {
+  /* surfaces */
+  --ink:   #f5f7fa;
+  --panel: #ffffff;
+  --raise: #eef2f7;
+  --edge:  #dde4ec;
+  --rule:  #eaeff5;
+  --fg:    #1d252f;
+  --muted: #5f6d7d;
+  --faint: #93a1b0;
+  --amber: #b06a00;
+  --amber-hi: #8c5400;
+  --on-amber: #ffffff;
+
+  /* data spectrum */
+  --t-num:  #0e7c6b;
+  --t-str:  #8a5a00;
+  --t-date: #6845a8;
+  --t-enum: #1a6cae;
+  --t-bin:  #b0392a;
+  --t-null: #9aa6b2;
+
+  --link:      var(--t-enum);
+  --ok:        #2f8f57;
+  --ok-fg:     #1d5f39;
+  --bad:       #c8412f;
+  --bad-fg:    #8f2418;
+  --sel:       rgba(176, 106, 0, .10);
+  --sel-hover: rgba(176, 106, 0, .16);
+  --shadow:    rgba(29, 37, 47, .28);
+  --comment:   #8794a3;
+
+  color-scheme: light;
+}

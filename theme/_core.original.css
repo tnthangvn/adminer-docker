@@ -1,0 +1,436 @@
+/* ==========================================================================
+   INSTRUMENT — structure layer (colour-free; drop in either token file above)
+   --------------------------------------------------------------------------
+   One rule drives the whole system:
+
+     Values that came out of the database are monospace and coloured by type.
+     Everything the application itself says is sans-serif and grey.
+
+   Amber is spent in exactly one place: the rail that marks where you are —
+   hovered row, selected row, current breadcrumb segment, primary action.
+   Nothing else is allowed to be bright.
+   ========================================================================== */
+
+html {
+  --ui:   ui-sans-serif, "Inter", "Segoe UI", Roboto, system-ui, sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* Adminer's four primitives, remapped onto the palette */
+  --bg:  var(--ink);
+  --dim: var(--panel);
+  --lit: var(--raise);
+
+  scrollbar-color: var(--edge) transparent;
+}
+
+body {
+  color: var(--fg);
+  background: var(--ink);
+  font: 13px/1.45 var(--ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --------------------------------------------------------------------------
+   Links — Adminer's blue-at-rest / red-on-hover scheme is the loudest thing
+   on the page. Calm it: one soft hue at rest, amber only on intent.
+   -------------------------------------------------------------------------- */
+
+a, a:visited                  { color: var(--link); text-decoration: none; }
+a:link:hover, a:visited:hover { color: var(--amber); text-decoration: underline; text-underline-offset: 3px; }
+a.text:hover                  { text-decoration: none; }
+:target                       { background: var(--sel); color: inherit; }
+:focus-visible                { outline: 2px solid var(--amber); outline-offset: 1px; }
+
+/* --------------------------------------------------------------------------
+   Headings
+   -------------------------------------------------------------------------- */
+
+h1 {                                   /* the wordmark — pure chrome */
+  font-size: 12px; font-weight: 500;
+  color: var(--muted); background: none; border: 0;
+  padding: 14px 16px 10px; margin: 0;
+}
+#h1      { color: var(--muted); font-style: normal; letter-spacing: .02em; }
+#logo    { filter: grayscale(1); opacity: .5; margin-right: 6px; }
+#version { color: var(--muted); }   /* an update notice is news, not your location */
+.version { color: var(--faint); font-size: 10px; }
+
+h2 {                                   /* page title — deliberately quiet */
+  font-size: 17px; font-weight: 550; letter-spacing: -.01em;
+  color: var(--fg); background: none; border: 0;
+  padding: 0; margin: 22px 0 16px;
+}
+h3 {
+  font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); margin: 26px 0 8px;
+}
+
+/* --------------------------------------------------------------------------
+   Sidebar — fixed and self-scrolling. The table list is what you actually
+   use, so it takes the free space; language and branding get out of its way.
+   -------------------------------------------------------------------------- */
+
+@media all and (min-width: 801px) {
+  #menu {
+    position: fixed; inset: 0 auto 0 0;
+    width: 19em; margin: 0;
+    display: flex; flex-direction: column;
+    background: var(--panel);
+    border-right: 1px solid var(--edge);
+    overflow: hidden;
+  }
+  #menu > *                  { order: 6; }
+  #menu > h1                 { order: 1; }
+  #menu form:has(#dbs)       { order: 2; }
+  #menu .links               { order: 3; }
+  #menu p:has(#filter-field) { order: 4; }   /* the filter sits on its list */
+  #menu #tables              { order: 5; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  #menu form:has(#lang)      { order: 9; margin-top: auto; border-top: 1px solid var(--edge); }
+
+  #lang       { position: static; padding: 10px 16px; }
+  #content    { margin: 40px 0 0 19em; padding: 0 24px 64px; }
+  #breadcrumb { left: 19em; right: 0; width: auto; }
+  .logout     { position: fixed; top: 0; right: 0; height: 32px; line-height: 32px;
+                padding: 0 14px 0 0; margin: 0; background: none; box-shadow: none; z-index: 3; }
+}
+
+#menu p, #logins, #tables { border-bottom: 1px solid var(--edge); padding: 10px 16px; }
+#menu #tables             { border-bottom: 0; padding: 6px 8px 24px; }
+#tables li, #logins li    { margin: 0; }
+
+#tables a, #tables span, #logins a {
+  background: none;
+  display: inline-block;
+  font: 12px/1.6 var(--mono);          /* table names are identifiers, not copy */
+  color: var(--muted);
+  padding: 1px 8px;
+  border-radius: 2px;
+  border-left: 2px solid transparent;
+}
+#tables a:hover, #logins a:hover { color: var(--fg); background: var(--raise); text-decoration: none; }
+#menu .active, #tables a.active  { color: var(--amber); border-left-color: var(--amber); font-weight: 500; }
+
+/* Every row in the list starts with the word "select". Ninety-nine rows of it
+   is a wall of noise, so the shortcut to the data becomes a mark instead. */
+#tables a.select          { font-size: 0; padding: 1px 5px; }
+#tables a.select::before  { content: "\203A"; font: 13px/1.6 var(--mono); color: var(--faint); }
+#tables a.select:hover::before,
+#tables a.select.active::before { color: var(--amber); }
+
+/* Long names run past the edge rather than being cut mid-glyph. */
+#tables li { overflow: hidden; white-space: nowrap;
+             mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+#tables    { scrollbar-width: thin; }
+
+#menu .links a { display: inline-block; margin: 0 14px 4px 0; font-size: 12px; white-space: nowrap; }
+
+/* tables-filter plugin: the search box lives with the list it filters */
+#menu input:not([type="submit"]):not([type="checkbox"]):not([type="radio"]) {
+  width: 100%; font: 12px/1.5 var(--mono);
+}
+
+/* --------------------------------------------------------------------------
+   Breadcrumb — the path bar, and the identity element of the theme.
+   PostgreSQL » host » database » schema » table is a real path, so it is set
+   like one: monospace, dim segments, amber where you are standing.
+   -------------------------------------------------------------------------- */
+
+#breadcrumb {
+  height: 32px; line-height: 32px;
+  padding: 0 24px; margin: 0;
+  font: 11.5px/32px var(--mono);
+  color: var(--amber);                 /* the trailing, non-linked segment */
+  background: var(--panel);
+  border-bottom: 1px solid var(--edge);
+  overflow: hidden; text-overflow: ellipsis;
+  z-index: 2;
+}
+#breadcrumb a       { color: var(--muted); }
+#breadcrumb a:hover { color: var(--fg); text-decoration: none; }
+
+/* --------------------------------------------------------------------------
+   Tables — the reason this tool exists.
+   No zebra: striping is noise at 200 rows and it fights the type colours.
+   Hairlines plus a hover rail read faster and cost less ink.
+   -------------------------------------------------------------------------- */
+
+table { margin: 12px 0 0; font-size: 12px; border: 0; border-spacing: 0; }
+
+/* Every grid cell holds database vocabulary — a value, a type, an index name,
+   a referential action. So the grid is monospace, and sans is reserved for
+   the chrome around it. */
+td, th {
+  border: 0;
+  border-bottom: 1px solid var(--edge);
+  border-right: 1px solid var(--rule);
+  padding: 5px 10px;
+  vertical-align: top;
+  font: 12px/1.5 var(--mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+td:last-child, th:last-child { border-right: 0; }
+
+thead th, thead td {
+  position: sticky; top: 32px;         /* clears the breadcrumb bar */
+  background: var(--panel);
+  border-bottom: 1px solid var(--edge);
+  text-align: left;
+  padding: 7px 10px;
+  z-index: 1;
+}
+thead th {
+  font: 500 11px/1.4 var(--mono);      /* column names are identifiers: never
+                                          uppercased — that would lie about
+                                          camelCase */
+  color: var(--muted); letter-spacing: .01em; white-space: nowrap;
+}
+thead th a, thead td a { color: var(--muted); font-weight: 500; }
+thead th a:hover       { color: var(--amber); }
+thead td               { font: 500 11px/1.4 var(--ui); color: var(--muted); }
+th                     { background: var(--panel); color: var(--fg); font-weight: 500; }
+
+/* every cell holding a value that came out of the database */
+#table td, td[id^="val["] {
+  font: 12px/1.5 var(--mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+  color: var(--fg);
+  max-width: 42ch;
+  overflow: hidden; text-overflow: ellipsis;
+}
+
+.odds tbody tr:nth-child(2n) { background: none; }          /* kill zebra */
+
+/* --- the signature: the amber rail ------------------------------------- */
+tbody tr:hover td, tbody tr:hover th   { background: var(--raise); }
+tbody tr:hover > :first-child          { box-shadow: inset 2px 0 0 var(--amber); }
+
+.js .checkable .checked td,
+.js .checkable .checked th             { background: var(--sel); color: var(--fg); }
+.js .checkable .checked > :first-child { box-shadow: inset 2px 0 0 var(--amber); }
+.js .checkable .checked:hover td,
+.js .checkable .checked:hover th       { background: var(--sel-hover); }
+.js .checkable .checked a              { color: var(--amber); }
+
+#edit-fields tbody tr:hover td,
+#edit-fields tbody tr:hover th         { background: var(--raise); }
+
+/* --- NULL is not a value; render it as the void it is ------------------- */
+td i {
+  font: 500 10px/1.5 var(--mono);
+  font-style: normal; letter-spacing: .08em;
+  color: var(--t-null);
+  border-bottom: 1px dotted var(--t-null);
+}
+
+/* --- type spectrum ------------------------------------------------------ */
+.char   { color: var(--t-str); }
+.date   { color: var(--t-date); }
+.enum   { color: var(--t-enum); }
+.binary { color: var(--t-bin); }
+.number, .datetime, .function { text-align: right; color: var(--t-num); }
+.view   { font-style: italic; color: var(--t-date); }
+.time   { color: var(--t-null); font-size: 10px; }
+.type   { width: 18ex; color: var(--muted); font-family: var(--mono); }
+
+a.edit       { color: var(--muted); font-size: 11px; }
+a.edit:hover { color: var(--amber); }
+
+/* column-name popover that tracks the cursor across wide tables */
+.js .column {
+  background: var(--raise);
+  border: 1px solid var(--edge); border-left: 0;
+  border-radius: 0 3px 3px 0;
+  color: var(--fg);
+  font: 11px/1.4 var(--mono);
+  box-shadow: 0 6px 20px -6px var(--shadow);
+}
+
+/* --------------------------------------------------------------------------
+   Forms
+   -------------------------------------------------------------------------- */
+
+input, select, textarea {
+  background: var(--ink);
+  color: var(--fg);
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  padding: 4px 7px;
+  font: 12px/1.4 var(--ui);
+}
+input:hover, select:hover, textarea:hover { border-color: var(--muted); }
+input:focus, select:focus, textarea:focus { border-color: var(--amber); outline: none; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--amber); padding: 0; }
+
+/* Chrome paints autofilled fields its own shade of blue; paint them back. */
+input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--fg);
+  -webkit-box-shadow: 0 0 0 1000px var(--ink) inset;
+  caret-color: var(--fg);
+}
+
+textarea, .sqlarea, pre, code { font-family: var(--mono); }
+
+input[type="submit"], button:not(.icon) {
+  background: var(--raise); color: var(--fg);
+  border: 1px solid var(--edge);
+  padding: 4px 12px; cursor: pointer;
+}
+input[type="submit"]:hover, button:not(.icon):hover { border-color: var(--amber); color: var(--amber); }
+
+input.default {                        /* the one primary action per screen */
+  background: var(--amber); border-color: var(--amber); color: var(--on-amber);
+  font-weight: 600; box-shadow: none;
+}
+input.default:hover { background: var(--amber-hi); border-color: var(--amber-hi); color: var(--on-amber); }
+input.required, input.maxlength { box-shadow: none; border-color: var(--bad); }
+
+input[name="delete"], input[name="drop"], input[name="logout"] {
+  background: none; border: 0; color: var(--muted); font-size: 11px; padding: 2px 6px;
+}
+input[name="delete"]:hover, input[name="drop"]:hover { color: var(--bad); }
+input[name="logout"]:hover { color: var(--amber); }
+
+fieldset {
+  border: 1px solid var(--edge); border-radius: 4px;
+  padding: 10px 14px; margin: 12px 10px 0 0;
+  background: var(--panel);
+}
+legend {
+  color: var(--muted); font-size: 11px; letter-spacing: .04em;
+  text-transform: uppercase; padding: 0 6px;
+}
+
+.icon       { background-color: var(--edge); border-radius: 3px; }
+.icon:hover { background-color: var(--amber); }
+
+/* --------------------------------------------------------------------------
+   Feedback
+   -------------------------------------------------------------------------- */
+
+.error, .message {
+  padding: 9px 14px; margin: 14px 0 0;
+  border-radius: 3px; font-size: 12px;
+}
+.error   { color: var(--bad-fg); background: color-mix(in srgb, var(--bad) 12%, transparent);
+           border-left: 2px solid var(--bad); }
+.error b { background: none; color: var(--fg); font-weight: 600; }
+.message { color: var(--ok-fg); background: color-mix(in srgb, var(--ok) 12%, transparent);
+           border-left: 2px solid var(--ok); }
+.message table { background: none; color: var(--fg); }
+
+#help {
+  background: var(--raise); border: 1px solid var(--edge); border-radius: 3px;
+  color: var(--fg); font: 11px/1.5 var(--mono); padding: 6px 8px;
+  box-shadow: 0 8px 24px -8px var(--shadow);
+}
+
+code     { background: var(--panel); border-radius: 2px; padding: 1px 4px; font-size: 11.5px; }
+pre.jush { background: var(--panel); border: 1px solid var(--edge); border-radius: 3px; padding: 10px 12px; }
+
+.footer       { box-shadow: 0 -12px 16px 10px var(--ink); }
+.footer > div { background: var(--ink); padding: 8px 0; border-top: 1px solid var(--edge); }
+.links a      { margin-right: 18px; }
+
+/* --------------------------------------------------------------------------
+   SQL syntax highlighting (jush) — the same spectrum as the data cells, so a
+   query and the rows it returns speak one colour language.
+   -------------------------------------------------------------------------- */
+
+.jush {
+  --text-color:         var(--fg);
+  --bg-color:           var(--panel);
+  --keyword-color:      var(--t-enum);
+  --string-color:       var(--t-str);
+  --string-plain-color: var(--t-str);
+  --identifier-color:   var(--amber);
+  --value-color:        var(--t-date);
+  --number-color:       var(--t-num);
+  --attribute-color:    var(--t-num);
+  --php-color:          var(--fg);
+  --js-bg-color:        var(--raise);
+  --css-bg-color:       var(--raise);
+  --php-bg-color:       var(--raise);
+  --php-sql-bg-color:   var(--edge);
+}
+.jush-com, .jush-one, .jush-php_com, .jush-php_one, .jush-js_one, .jush-js_doc,
+.jush-htm_com, .jush-com_code, .jush-php_doc { color: var(--comment); font-style: italic; }
+
+/* --------------------------------------------------------------------------
+   Login — the connection form is the whole page here, so it stops being a
+   stray two-column table in the top-left corner and becomes a card.
+   Field labels go monospace: server, username and database name things on
+   the wire, not things in the interface.
+   -------------------------------------------------------------------------- */
+
+body:has(#username) {
+  display: grid; align-content: center; justify-items: center;
+  gap: 20px; min-height: 100vh; padding: 24px;
+  box-sizing: border-box;
+}
+
+body:has(#username) #content {
+  width: min(360px, 100%); box-sizing: border-box;
+  margin: 0; padding: 26px 26px 22px;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  box-shadow: 0 24px 60px -28px var(--shadow);
+}
+body:has(#username) h2 { font-size: 15px; margin: 0 0 18px; }
+
+body:has(#username) table.layout,
+body:has(#username) table.layout tbody,
+body:has(#username) table.layout tr,
+body:has(#username) table.layout th,
+body:has(#username) table.layout td { display: block; width: 100%; border: 0; background: none; }
+
+body:has(#username) table.layout    { margin: 0; }
+body:has(#username) table.layout th {
+  padding: 0 0 5px;
+  font: 500 11px/1.4 var(--mono);
+  color: var(--muted); text-align: left;
+}
+body:has(#username) table.layout td { padding: 0 0 13px; }
+body:has(#username) table.layout input:not([type="checkbox"]),
+body:has(#username) table.layout select { width: 100%; padding: 7px 9px; font-size: 13px; }
+
+body:has(#username) #content p { margin: 4px 0 0; }
+body:has(#username) #content p input[type="submit"] {
+  width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600;
+  background: var(--amber); border-color: var(--amber); color: var(--on-amber);
+}
+body:has(#username) #content p input[type="submit"]:hover {
+  background: var(--amber-hi); border-color: var(--amber-hi); color: var(--on-amber);
+}
+body:has(#username) #content p label {
+  display: flex; align-items: center; gap: 7px;
+  margin-top: 13px; font-size: 12px; color: var(--muted);
+}
+body:has(#username) #content p label input { margin: 0; }
+body:has(#username) .error, body:has(#username) .message { margin: 0 0 16px; }
+
+/* the sidebar has nothing to list yet, so it becomes a footer line */
+body:has(#username) #menu {
+  position: static; inset: auto; width: auto; margin: 0;
+  display: flex; flex-flow: row wrap; align-items: center; justify-content: center; gap: 16px;
+  background: none; border: 0; box-shadow: none; overflow: visible;
+}
+body:has(#username) #menu h1            { padding: 0; }
+body:has(#username) #menu form          { border: 0; margin: 0; }
+body:has(#username) #lang               { position: static; padding: 0; font-size: 12px; color: var(--muted); }
+body:has(#username) #lang select        { width: auto; }
+
+/* --------------------------------------------------------------------------
+   Floor
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+@media all and (max-width: 800px) {
+  #menu { background: var(--panel); border: 1px solid var(--edge);
+          box-shadow: 0 20px 40px -12px var(--shadow); }
+  #breadcrumb { padding: 0 12px 0 48px; }
+  thead th, thead td { top: 0; }
+}

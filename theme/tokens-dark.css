@@ -1,0 +1,37 @@
+/* Instrument — Night
+   Graphite with amber instrumentation. Chrome recedes; only data carries hue. */
+
+html {
+  /* surfaces */
+  --ink:   #101418;   /* page */
+  --panel: #171c22;   /* sidebar, table head */
+  --raise: #1d242c;   /* hovered row, popovers */
+  --edge:  #262f39;   /* hairlines */
+  --rule:  #1b222a;   /* column tracking, barely there */
+  --fg:    #c9d3dd;   /* primary text */
+  --muted: #7a8899;   /* labels, chrome */
+  --faint: #4d5a68;   /* version strings, disabled */
+  --amber: #f2a93b;   /* you-are-here — and nothing else */
+  --amber-hi: #ffbc55;
+  --on-amber: #10141a;
+
+  /* data spectrum — maps 1:1 onto Adminer's own type classes */
+  --t-num:  #7fd4c1;
+  --t-str:  #e4c77e;
+  --t-date: #b49ae8;
+  --t-enum: #8fc0f0;
+  --t-bin:  #e8897c;
+  --t-null: #566270;
+
+  --link:      var(--t-enum);
+  --ok:        #6fbf8b;
+  --ok-fg:     #a7e0bc;
+  --bad:       #e4695c;
+  --bad-fg:    #ffb4ac;
+  --sel:       rgba(242, 169, 59, .09);
+  --sel-hover: rgba(242, 169, 59, .14);
+  --shadow:    #000;
+  --comment:   #5b6775;
+
+  color-scheme: dark;
+}

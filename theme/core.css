@@ -1,0 +1,541 @@
+/* ==========================================================================
+   INSTRUMENT v2 — structure layer (colour-free; drop in either token file above)
+   --------------------------------------------------------------------------
+   The rule that has always driven this system, unchanged:
+
+     Values that came out of the database are monospace and coloured by type.
+     Everything the application itself says is sans-serif and grey.
+     Amber marks exactly one thing: where you are standing.
+
+   What v2 adds — depth without noise:
+
+     PAPER-CRAFT. Chrome is built from stacked sheets. Every raised surface
+     (sidebar, card, popover, button) carries a hairline light on its top edge
+     and a soft shadow beneath, so panels read as leaves of paper laid over the
+     page instead of flat fills with a border. The grid stays flat — depth is
+     for chrome, never for data.
+
+     ISOMETRIC. Spent in one place only: the login card sits on two offset
+     slabs behind it, a plinth seen slightly from the side. It is the first
+     screen and the only screen with room to be an object; everywhere else the
+     tool gets out of the way of the rows.
+   ========================================================================== */
+
+html {
+  --ui:   ui-sans-serif, "Inter", "Segoe UI", Roboto, system-ui, sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* Adminer's four primitives, remapped onto the palette */
+  --bg:  var(--ink);
+  --dim: var(--panel);
+  --lit: var(--raise);
+
+  /* Paper-craft derivations — built only from tokens already in scope, so the
+     structure layer stays colour-free and both palettes drive it unchanged. */
+  --hi:     color-mix(in srgb, var(--fg) 7%, transparent);   /* top-edge light of a sheet */
+  --hi-soft:color-mix(in srgb, var(--fg) 4%, transparent);
+  --sink:   color-mix(in srgb, var(--shadow) 55%, transparent);
+  --lift-1: 0 1px 0 var(--hi-soft), 0 1px 2px -1px var(--sink);
+  --lift-2: inset 0 1px 0 var(--hi), 0 2px 4px -2px var(--sink), 0 8px 20px -12px var(--sink);
+  --lift-3: inset 0 1px 0 var(--hi), 0 10px 30px -12px var(--sink), 0 30px 60px -30px var(--sink);
+  --glow-amber: 0 2px 10px -3px color-mix(in srgb, var(--amber) 55%, transparent);
+  --ease: 120ms cubic-bezier(.2, .6, .3, 1);
+
+  scrollbar-color: var(--edge) transparent;
+}
+
+body {
+  color: var(--fg);
+  background:
+    radial-gradient(120% 80% at 100% 0%, color-mix(in srgb, var(--panel) 55%, transparent), transparent 60%),
+    var(--ink);
+  font: 13px/1.45 var(--ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --------------------------------------------------------------------------
+   Links — one soft hue at rest, amber only on intent.
+   -------------------------------------------------------------------------- */
+
+a, a:visited                  { color: var(--link); text-decoration: none; transition: color var(--ease); }
+a:link:hover, a:visited:hover { color: var(--amber); text-decoration: underline; text-underline-offset: 3px; }
+a.text:hover                  { text-decoration: none; }
+:target                       { background: var(--sel); color: inherit; }
+:focus-visible                { outline: 2px solid var(--amber); outline-offset: 1px; border-radius: 3px; }
+
+/* --------------------------------------------------------------------------
+   Headings
+   -------------------------------------------------------------------------- */
+
+h1 {                                   /* the wordmark — pure chrome */
+  font-size: 12px; font-weight: 500;
+  color: var(--muted); background: none; border: 0;
+  padding: 15px 16px 11px; margin: 0;
+}
+#h1      { color: var(--muted); font-style: normal; letter-spacing: .02em; }
+#logo    { filter: grayscale(1); opacity: .5; margin-right: 6px; }
+#version { color: var(--muted); }
+.version { color: var(--faint); font-size: 10px; }
+
+h2 {                                   /* page title — deliberately quiet */
+  font-size: 17px; font-weight: 550; letter-spacing: -.01em;
+  color: var(--fg); background: none; border: 0;
+  padding: 0; margin: 22px 0 16px;
+}
+h3 {
+  font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); margin: 26px 0 8px;
+}
+
+/* --------------------------------------------------------------------------
+   Sidebar — a sheet of paper standing on its edge over the page: hairline top
+   light, soft shadow cast to the right. Fixed and self-scrolling; the table
+   list takes the free space, chrome gets out of its way.
+   -------------------------------------------------------------------------- */
+
+@media all and (min-width: 801px) {
+  #menu {
+    position: fixed; inset: 0 auto 0 0;
+    width: 19em; margin: 0;
+    display: flex; flex-direction: column;
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--raise) 40%, var(--panel)), var(--panel) 120px);
+    border-right: 1px solid var(--edge);
+    box-shadow: 1px 0 0 var(--hi-soft), 6px 0 24px -14px var(--sink);
+    overflow: hidden;
+  }
+  #menu > *                  { order: 6; }
+  #menu > h1                 { order: 1; }
+  #menu form:has(#dbs)       { order: 2; }
+  #menu .links               { order: 3; }
+  #menu p:has(#filter-field) { order: 4; }   /* the filter sits on its list */
+  #menu #tables              { order: 5; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  #menu form:has(#lang)      { order: 9; margin-top: auto; border-top: 1px solid var(--edge);
+                               background: color-mix(in srgb, var(--ink) 40%, var(--panel)); }
+
+  #lang       { position: static; padding: 10px 16px; }
+  #content    { margin: 40px 0 0 19em; padding: 0 24px 64px; }
+  #breadcrumb { left: 19em; right: 0; width: auto; }
+  .logout     { position: fixed; top: 0; right: 0; height: 32px; line-height: 32px;
+                padding: 0 14px 0 0; margin: 0; background: none; box-shadow: none; z-index: 3; }
+}
+
+#menu p, #logins, #tables { border-bottom: 1px solid var(--edge); padding: 10px 16px; }
+#menu #tables             { border-bottom: 0; padding: 6px 8px 24px; }
+#tables li, #logins li    { margin: 0; }
+
+#tables a, #tables span, #logins a {
+  background: none;
+  display: inline-block;
+  font: 12px/1.6 var(--mono);          /* table names are identifiers, not copy */
+  color: var(--muted);
+  padding: 2px 8px;
+  border-radius: 3px;
+  border-left: 2px solid transparent;
+  transition: color var(--ease), background var(--ease), border-color var(--ease);
+}
+#tables a:hover, #logins a:hover { color: var(--fg); background: var(--raise); text-decoration: none; }
+#menu .active, #tables a.active  {
+  color: var(--amber); border-left-color: var(--amber); font-weight: 500;
+  background: var(--sel);
+}
+
+/* Every row starts with the word "select"; ninety-nine of them is a wall of
+   noise, so the shortcut to the data becomes a mark instead. */
+#tables a.select          { font-size: 0; padding: 2px 5px; }
+#tables a.select::before  { content: "\203A"; font: 13px/1.6 var(--mono); color: var(--faint); }
+#tables a.select:hover::before,
+#tables a.select.active::before { color: var(--amber); }
+
+/* Long names run past the edge rather than being cut mid-glyph. */
+#tables li { overflow: hidden; white-space: nowrap;
+             mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+#tables    { scrollbar-width: thin; }
+
+#menu .links a { display: inline-block; margin: 0 14px 4px 0; font-size: 12px; white-space: nowrap; }
+
+/* tables-filter plugin: the search box lives with the list it filters */
+#menu input:not([type="submit"]):not([type="checkbox"]):not([type="radio"]) {
+  width: 100%; font: 12px/1.5 var(--mono);
+}
+
+/* --------------------------------------------------------------------------
+   Breadcrumb — the path bar, and the identity element of the theme.
+   dim segments, amber where you are standing; sits on a thin sheet.
+   -------------------------------------------------------------------------- */
+
+#breadcrumb {
+  height: 32px; line-height: 32px;
+  padding: 0 24px; margin: 0;
+  font: 11.5px/32px var(--mono);
+  color: var(--amber);                 /* the trailing, non-linked segment */
+  background: color-mix(in srgb, var(--raise) 30%, var(--panel));
+  border-bottom: 1px solid var(--edge);
+  box-shadow: 0 1px 0 var(--hi-soft), 0 6px 16px -14px var(--sink);
+  overflow: hidden; text-overflow: ellipsis;
+  z-index: 2;
+}
+#breadcrumb a       { color: var(--muted); }
+#breadcrumb a:hover { color: var(--fg); text-decoration: none; }
+
+/* --------------------------------------------------------------------------
+   Tables — the reason this tool exists. Flat on purpose: no zebra, no paper
+   depth, no shadow inside the data. Hairlines plus a hover rail read faster
+   and cost less ink than any decoration would.
+   -------------------------------------------------------------------------- */
+
+table { margin: 12px 0 0; font-size: 12px; border: 0; border-spacing: 0; }
+
+td, th {
+  border: 0;
+  border-bottom: 1px solid var(--edge);
+  border-right: 1px solid var(--rule);
+  padding: 5px 10px;
+  vertical-align: top;
+  font: 12px/1.5 var(--mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+td:last-child, th:last-child { border-right: 0; }
+
+/* the column header is the one place the grid earns a lift: when the body
+   scrolls under it, a soft shadow separates the sticky head from the rows. */
+thead th, thead td {
+  position: sticky; top: 32px;         /* clears the breadcrumb bar */
+  background: color-mix(in srgb, var(--raise) 22%, var(--panel));
+  border-bottom: 1px solid var(--edge);
+  box-shadow: 0 1px 0 var(--edge), 0 8px 10px -10px var(--sink);
+  text-align: left;
+  padding: 7px 10px;
+  z-index: 1;
+}
+thead th {
+  font: 500 11px/1.4 var(--mono);      /* identifiers: never uppercased —
+                                          that would lie about camelCase */
+  color: var(--muted); letter-spacing: .01em; white-space: nowrap;
+}
+thead th a, thead td a { color: var(--muted); font-weight: 500; }
+thead th a:hover       { color: var(--amber); }
+thead td               { font: 500 11px/1.4 var(--ui); color: var(--muted); }
+th                     { background: var(--panel); color: var(--fg); font-weight: 500; }
+
+#table td, td[id^="val["] {
+  font: 12px/1.5 var(--mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+  color: var(--fg);
+  max-width: 42ch;
+  overflow: hidden; text-overflow: ellipsis;
+}
+
+.odds tbody tr:nth-child(2n) { background: none; }          /* kill zebra */
+
+/* --- the signature: the amber rail ------------------------------------- */
+tbody tr td, tbody tr th               { transition: background var(--ease); }
+tbody tr:hover td, tbody tr:hover th   { background: var(--raise); }
+tbody tr:hover > :first-child          { box-shadow: inset 2px 0 0 var(--amber); }
+
+.js .checkable .checked td,
+.js .checkable .checked th             { background: var(--sel); color: var(--fg); }
+.js .checkable .checked > :first-child { box-shadow: inset 2px 0 0 var(--amber); }
+.js .checkable .checked:hover td,
+.js .checkable .checked:hover th       { background: var(--sel-hover); }
+.js .checkable .checked a              { color: var(--amber); }
+
+#edit-fields tbody tr:hover td,
+#edit-fields tbody tr:hover th         { background: var(--raise); }
+
+/* --- NULL is not a value; render it as the void it is ------------------- */
+td i {
+  font: 500 10px/1.5 var(--mono);
+  font-style: normal; letter-spacing: .08em;
+  color: var(--t-null);
+  border-bottom: 1px dotted var(--t-null);
+}
+
+/* --- type spectrum ------------------------------------------------------ */
+.char   { color: var(--t-str); }
+.date   { color: var(--t-date); }
+.enum   { color: var(--t-enum); }
+.binary { color: var(--t-bin); }
+.number, .datetime, .function { text-align: right; color: var(--t-num); }
+.view   { font-style: italic; color: var(--t-date); }
+.time   { color: var(--t-null); font-size: 10px; }
+.type   { width: 18ex; color: var(--muted); font-family: var(--mono); }
+
+a.edit       { color: var(--muted); font-size: 11px; }
+a.edit:hover { color: var(--amber); }
+
+/* column-name popover that tracks the cursor across wide tables — a small
+   floating sheet, so it takes the full paper lift. */
+.js .column {
+  background: var(--raise);
+  border: 1px solid var(--edge); border-left: 0;
+  border-radius: 0 4px 4px 0;
+  color: var(--fg);
+  font: 11px/1.4 var(--mono);
+  box-shadow: var(--lift-2);
+}
+
+/* --------------------------------------------------------------------------
+   Forms — inputs sit slightly recessed (a pressed slot); buttons stand raised
+   (a key you can press). Focus is always amber.
+   -------------------------------------------------------------------------- */
+
+input, select, textarea {
+  background: var(--ink);
+  color: var(--fg);
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  padding: 4px 7px;
+  font: 12px/1.4 var(--ui);
+  box-shadow: inset 0 1px 2px -1px var(--sink);
+  transition: border-color var(--ease), box-shadow var(--ease);
+}
+input:hover, select:hover, textarea:hover { border-color: var(--muted); }
+input:focus, select:focus, textarea:focus {
+  border-color: var(--amber); outline: none;
+  box-shadow: inset 0 1px 2px -1px var(--sink), 0 0 0 3px var(--sel);
+}
+input[type="checkbox"], input[type="radio"] { accent-color: var(--amber); padding: 0; box-shadow: none; }
+
+/* Chrome paints autofilled fields its own blue; paint them back. */
+input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--fg);
+  -webkit-box-shadow: 0 0 0 1000px var(--ink) inset;
+  caret-color: var(--fg);
+}
+
+textarea, .sqlarea, pre, code { font-family: var(--mono); }
+
+input[type="submit"], button:not(.icon) {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--fg) 5%, var(--raise)), var(--raise));
+  color: var(--fg);
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  padding: 5px 13px; cursor: pointer;
+  box-shadow: var(--lift-1);
+  transition: color var(--ease), border-color var(--ease), box-shadow var(--ease), transform var(--ease);
+}
+input[type="submit"]:hover, button:not(.icon):hover {
+  border-color: var(--amber); color: var(--amber);
+  box-shadow: var(--lift-1), 0 4px 12px -6px var(--sink);
+}
+input[type="submit"]:active, button:not(.icon):active {
+  transform: translateY(1px);
+  box-shadow: inset 0 1px 2px var(--sink);
+}
+
+input.default {                        /* the one primary action per screen */
+  background: linear-gradient(180deg, var(--amber-hi), var(--amber));
+  border-color: var(--amber); color: var(--on-amber);
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 35%, transparent), var(--glow-amber);
+}
+input.default:hover {
+  background: var(--amber-hi); border-color: var(--amber-hi); color: var(--on-amber);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 35%, transparent), 0 4px 14px -4px color-mix(in srgb, var(--amber) 70%, transparent);
+}
+input.default:active { transform: translateY(1px); }
+input.required, input.maxlength { box-shadow: none; border-color: var(--bad); }
+
+input[name="delete"], input[name="drop"], input[name="logout"] {
+  background: none; border: 0; color: var(--muted); font-size: 11px; padding: 2px 6px;
+  box-shadow: none;
+}
+input[name="delete"]:hover, input[name="drop"]:hover { color: var(--bad); transform: none; }
+input[name="logout"]:hover { color: var(--amber); transform: none; }
+
+fieldset {
+  border: 1px solid var(--edge); border-radius: 6px;
+  padding: 10px 14px; margin: 12px 10px 0 0;
+  background: var(--panel);
+  box-shadow: var(--lift-1);
+}
+legend {
+  color: var(--muted); font-size: 11px; letter-spacing: .04em;
+  text-transform: uppercase; padding: 0 6px;
+}
+
+.icon       { background-color: var(--edge); border-radius: 4px; transition: background var(--ease); }
+.icon:hover { background-color: var(--amber); }
+
+/* --------------------------------------------------------------------------
+   SQL editor — the query box is the workbench of the tool, so it reads as a
+   panel you write into, not a stray textarea. Result rows use the grid above,
+   so query and answer share one surface language.
+   -------------------------------------------------------------------------- */
+
+textarea[name="query"], .sqlarea, form textarea {
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font: 12.5px/1.6 var(--mono);
+  tab-size: 2;
+  box-shadow: var(--lift-1), inset 0 1px 2px -1px var(--sink);
+  min-height: 6.5em;
+}
+textarea[name="query"]:focus, .sqlarea:focus {
+  border-color: var(--amber);
+  box-shadow: var(--lift-1), 0 0 0 3px var(--sel);
+}
+
+/* --------------------------------------------------------------------------
+   Feedback — a message is a slip of paper laid on the page.
+   -------------------------------------------------------------------------- */
+
+.error, .message {
+  padding: 9px 14px; margin: 14px 0 0;
+  border-radius: 5px; font-size: 12px;
+  box-shadow: var(--lift-1);
+}
+.error   { color: var(--bad-fg); background: color-mix(in srgb, var(--bad) 12%, var(--panel));
+           border-left: 2px solid var(--bad); }
+.error b { background: none; color: var(--fg); font-weight: 600; }
+.message { color: var(--ok-fg); background: color-mix(in srgb, var(--ok) 12%, var(--panel));
+           border-left: 2px solid var(--ok); }
+.message table { background: none; color: var(--fg); box-shadow: none; }
+
+#help {
+  background: var(--raise); border: 1px solid var(--edge); border-radius: 5px;
+  color: var(--fg); font: 11px/1.5 var(--mono); padding: 6px 8px;
+  box-shadow: var(--lift-2);
+}
+
+code     { background: var(--panel); border-radius: 3px; padding: 1px 4px; font-size: 11.5px; }
+pre.jush { background: var(--panel); border: 1px solid var(--edge); border-radius: 5px; padding: 10px 12px;
+           box-shadow: var(--lift-1); }
+
+.footer       { box-shadow: 0 -12px 16px 10px var(--ink); }
+.footer > div { background: var(--ink); padding: 8px 0; border-top: 1px solid var(--edge); }
+.links a      { margin-right: 18px; }
+
+/* --------------------------------------------------------------------------
+   SQL syntax highlighting (jush) — the same spectrum as the data cells, so a
+   query and the rows it returns speak one colour language.
+   -------------------------------------------------------------------------- */
+
+.jush {
+  --text-color:         var(--fg);
+  --bg-color:           var(--panel);
+  --keyword-color:      var(--t-enum);
+  --string-color:       var(--t-str);
+  --string-plain-color: var(--t-str);
+  --identifier-color:   var(--amber);
+  --value-color:        var(--t-date);
+  --number-color:       var(--t-num);
+  --attribute-color:    var(--t-num);
+  --php-color:          var(--fg);
+  --js-bg-color:        var(--raise);
+  --css-bg-color:       var(--raise);
+  --php-bg-color:       var(--raise);
+  --php-sql-bg-color:   var(--edge);
+}
+.jush-com, .jush-one, .jush-php_com, .jush-php_one, .jush-js_one, .jush-js_doc,
+.jush-htm_com, .jush-com_code, .jush-php_doc { color: var(--comment); font-style: italic; }
+
+/* --------------------------------------------------------------------------
+   Login — the connection form is the whole page here. A centred card, and the
+   only place the theme is spent on an object: two slabs offset behind it read
+   as a plinth seen from the side. Field labels go monospace — server, username
+   and database name are things on the wire, not things in the interface.
+   -------------------------------------------------------------------------- */
+
+body:has(#username) {
+  display: grid; align-content: center; justify-items: center;
+  gap: 20px; min-height: 100vh; padding: 24px;
+  box-sizing: border-box;
+  background:
+    radial-gradient(60% 50% at 50% 0%, color-mix(in srgb, var(--amber) 8%, transparent), transparent 70%),
+    radial-gradient(100% 70% at 100% 100%, color-mix(in srgb, var(--panel) 60%, transparent), transparent 60%),
+    var(--ink);
+}
+
+body:has(#username) #content {
+  position: relative;
+  width: min(360px, 100%); box-sizing: border-box;
+  margin: 0; padding: 28px 28px 24px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--raise) 35%, var(--panel)), var(--panel) 80px);
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  box-shadow: var(--lift-3);
+  isolation: isolate;
+}
+/* the plinth: two offset sheets stacked to the lower-right */
+body:has(#username) #content::before,
+body:has(#username) #content::after {
+  content: ""; position: absolute; inset: 0; border-radius: 10px; z-index: -1;
+  border: 1px solid var(--edge);
+}
+body:has(#username) #content::before {
+  transform: translate(7px, 9px);
+  background: color-mix(in srgb, var(--raise) 60%, var(--panel));
+}
+body:has(#username) #content::after {
+  transform: translate(14px, 18px);
+  background: color-mix(in srgb, var(--amber) 12%, var(--panel));
+  border-color: color-mix(in srgb, var(--amber) 30%, var(--edge));
+  box-shadow: 0 24px 50px -24px var(--sink);
+}
+body:has(#username) h2 { font-size: 15px; margin: 0 0 18px; }
+
+body:has(#username) table.layout,
+body:has(#username) table.layout tbody,
+body:has(#username) table.layout tr,
+body:has(#username) table.layout th,
+body:has(#username) table.layout td { display: block; width: 100%; border: 0; background: none; box-shadow: none; }
+
+body:has(#username) table.layout    { margin: 0; }
+body:has(#username) table.layout th {
+  padding: 0 0 5px;
+  font: 500 11px/1.4 var(--mono);
+  color: var(--muted); text-align: left;
+}
+body:has(#username) table.layout td { padding: 0 0 13px; }
+body:has(#username) table.layout input:not([type="checkbox"]),
+body:has(#username) table.layout select { width: 100%; padding: 8px 10px; font-size: 13px; }
+
+body:has(#username) #content p { margin: 4px 0 0; }
+body:has(#username) #content p input[type="submit"] {
+  width: 100%; padding: 9px 12px; font-size: 13px; font-weight: 600;
+  background: linear-gradient(180deg, var(--amber-hi), var(--amber));
+  border-color: var(--amber); color: var(--on-amber);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 35%, transparent), var(--glow-amber);
+}
+body:has(#username) #content p input[type="submit"]:hover {
+  background: var(--amber-hi); border-color: var(--amber-hi); color: var(--on-amber);
+}
+body:has(#username) #content p label {
+  display: flex; align-items: center; gap: 7px;
+  margin-top: 13px; font-size: 12px; color: var(--muted);
+}
+body:has(#username) #content p label input { margin: 0; }
+body:has(#username) .error, body:has(#username) .message { margin: 0 0 16px; }
+
+/* the sidebar has nothing to list yet, so it becomes a footer line */
+body:has(#username) #menu {
+  position: static; inset: auto; width: auto; margin: 0;
+  display: flex; flex-flow: row wrap; align-items: center; justify-content: center; gap: 16px;
+  background: none; border: 0; box-shadow: none; overflow: visible;
+}
+body:has(#username) #menu h1            { padding: 0; }
+body:has(#username) #menu form          { border: 0; margin: 0; }
+body:has(#username) #lang               { position: static; padding: 0; font-size: 12px; color: var(--muted); }
+body:has(#username) #lang select        { width: auto; }
+
+/* --------------------------------------------------------------------------
+   Floor
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+@media all and (max-width: 800px) {
+  #menu { background: var(--panel); border: 1px solid var(--edge);
+          box-shadow: var(--lift-2); }
+  #breadcrumb { padding: 0 12px 0 48px; }
+  thead th, thead td { top: 0; }
+  /* the plinth would collide with screen edges on a phone; lay the card flat */
+  body:has(#username) #content::before,
+  body:has(#username) #content::after { display: none; }
+}
