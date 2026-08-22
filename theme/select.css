@@ -22,7 +22,14 @@ tbody tr.ig-peeking td, tbody tr.ig-peeking th { background: var(--sel); }
 #fieldset-search input[type="time"] {
   font: 12px/1.4 var(--mono);
 }
-#fieldset-search ::-webkit-calendar-picker-indicator { filter: invert(.6); cursor: pointer; }
+#fieldset-search ::-webkit-calendar-picker-indicator {
+  filter: invert(.55) sepia(1) saturate(4) hue-rotate(357deg);
+  opacity: .7; cursor: pointer;
+}
+#fieldset-search input:hover::-webkit-calendar-picker-indicator { opacity: 1; }
+#fieldset-search input[type="date"],
+#fieldset-search input[type="datetime-local"],
+#fieldset-search input[type="time"] { cursor: pointer; }
 
 /* --- the drawer ----------------------------------------------------------- */
 

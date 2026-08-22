@@ -136,6 +136,20 @@
 		new MutationObserver(() => rows().forEach(adapt)).observe(search, { childList: true, subtree: true });
 		rows().forEach(adapt);
 
+		// A picker that only opens from its little calendar icon is a picker
+		// most people never find. Any click on the field opens it.
+		search.addEventListener('click', event => {
+			const val = event.target;
+			if (val.matches('input[type="date"], input[type="datetime-local"], input[type="time"]')) {
+				try {
+					val.showPicker();
+				} catch {
+					// Not supported, or the click did not count as activation —
+					// the icon still works.
+				}
+			}
+		});
+
 		// A datetime-local field hands back "2026-07-24T09:30"; SQL wants a space.
 		form.addEventListener('submit', () => {
 			for (const val of search.querySelectorAll('input[type="datetime-local"]')) {
