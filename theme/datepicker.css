@@ -13,6 +13,7 @@
 
 /* --- shortcuts ------------------------------------------------------------ */
 
+.ig-cal-shortcuts[hidden] { display: none; }
 .ig-cal-shortcuts {
   display: flex; flex-direction: column; gap: 2px;
   padding: 8px;

@@ -147,7 +147,11 @@ namespace Instrument {
         final class PageAssets extends \Adminer\Plugin
         {
             /** Page flag in $_GET => asset basename in theme/. */
-            private const PAGES = ['schema' => ['schema'], 'select' => ['select', 'datepicker']];
+            private const PAGES = [
+                'schema' => ['schema'],
+                'select' => ['select', 'datepicker'],
+                'edit'   => ['datepicker'],
+            ];
 
             public function head($dark = null): ?bool
             {
@@ -158,6 +162,9 @@ namespace Instrument {
                     }
                 }
 
+                if ($this->columnTypes()) {
+                    echo \Adminer\script('window.igFields = ' . json_encode($this->columnTypes()) . ';');
+                }
                 if ($this->enumColumns()) {
                     echo \Adminer\script('window.igEnums = ' . json_encode($this->enumColumns()) . ';');
                     $assets[] = 'enums';
@@ -170,6 +177,53 @@ namespace Instrument {
                 }
 
                 return null;
+            }
+
+            /**
+             * Column => declared type, for the table on screen.
+             *
+             * The select page carries types in its header cells, but the edit
+             * form does not — it renders a bare text box whatever the column
+             * holds. This is what tells the date picker which fields are dates.
+             *
+             * @return array<string, string>
+             */
+            private function columnTypes(): array
+            {
+                static $types = null;
+                if ($types !== null) {
+                    return $types;
+                }
+
+                $types = [];
+                foreach ($this->tableFields() as $name => $field) {
+                    $types[$name] = trim((string) $field['type'], '"');
+                }
+
+                return $types;
+            }
+
+            /** @return array<string, array> the current table's fields, or none */
+            private function tableFields(): array
+            {
+                static $fields = null;
+                if ($fields !== null) {
+                    return $fields;
+                }
+
+                $fields = [];
+                $table = $_GET['table'] ?? $_GET['select'] ?? $_GET['edit'] ?? '';
+                if ($table === '') {
+                    return $fields;
+                }
+
+                try {
+                    $fields = \Adminer\fields($table);
+                } catch (\Throwable $e) {
+                    error_log('adminer: field lookup failed: ' . $e->getMessage());
+                }
+
+                return $fields;
             }
 
             /**
@@ -190,8 +244,7 @@ namespace Instrument {
                 }
 
                 $columns = [];
-                $table = $_GET['table'] ?? $_GET['select'] ?? $_GET['edit'] ?? '';
-                if ($table === '' || \Adminer\DRIVER !== 'pgsql') {
+                if (\Adminer\DRIVER !== 'pgsql' || !$this->tableFields()) {
                     return $columns;
                 }
 
@@ -208,8 +261,7 @@ namespace Instrument {
                         return $columns;
                     }
 
-                    foreach (\Adminer\fields($table) as $name => $field) {
-                        $type = trim((string) $field['type'], '"');
+                    foreach ($this->columnTypes() as $name => $type) {
                         if (isset($labels[$type])) {
                             $columns[$name] = $labels[$type];
                         }

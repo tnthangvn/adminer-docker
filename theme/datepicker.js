@@ -9,16 +9,14 @@
  * A range shortcut writes two conditions, because that is what a range is:
  * `>= start` on the row you opened, and `< end` on the next one. Adminer keeps
  * a spare empty row at the bottom of the search form, which is exactly where
- * the second half goes.
+ * the second half goes. On an edit form you are entering one value, so the
+ * shortcuts step aside and only the calendar shows.
  */
 
 (() => {
 	'use strict';
 
 	const search = document.querySelector('#fieldset-search');
-	if (!search) {
-		return;
-	}
 
 	const DAY = 86400000;
 	const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
@@ -37,6 +35,32 @@
 
 	/** The condition row an element sits in, past the combobox wrapper. */
 	const rowOf = el => el.parentElement;
+
+	/**
+	 * The edit form renders every column as a bare text box, so the types come
+	 * down from the server in window.igFields.
+	 */
+	function markEditFields() {
+		const types = window.igFields;
+		if (!types) {
+			return;
+		}
+
+		for (const [column, type] of Object.entries(types)) {
+			const t = type.toLowerCase();
+			const kind = /timestamp|datetime/.test(t) ? 'datetime' : (/^date/.test(t) ? 'date' : '');
+			if (!kind) {
+				continue;
+			}
+
+			const input = document.querySelector(`input[name="fields[${CSS.escape(column)}]"]`);
+			if (input && !input.dataset.igDate && input.type !== 'checkbox') {
+				input.type = 'text';
+				input.dataset.igDate = kind;
+				input.placeholder = kind === 'date' ? 'YYYY-MM-DD' : 'YYYY-MM-DD hh:mm:ss';
+			}
+		}
+	}
 
 	/* --- the panel ---------------------------------------------------------- */
 
@@ -68,6 +92,7 @@
 	document.body.append(cal);
 
 	const ui = {
+		shortcuts: cal.querySelector('.ig-cal-shortcuts'),
 		month: cal.querySelector('.ig-cal-month'),
 		grid: cal.querySelector('.ig-cal-grid'),
 		time: cal.querySelector('.ig-cal-time'),
@@ -82,6 +107,7 @@
 		cursor = parse(input.value) || today();
 
 		const withTime = input.dataset.igDate === 'datetime';
+		ui.shortcuts.hidden = !search?.contains(input);   // a range needs two conditions
 		ui.time.hidden = !withTime;
 		ui.timeInput.value = withTime ? (timeOf(input.value) || '') : '';
 
@@ -159,6 +185,11 @@
 	 * `<= today` would drop everything that happened today.
 	 */
 	function applyRange(start, end) {
+		if (!search?.contains(field)) {
+			pickDay(iso(start));
+			return close();
+		}
+
 		const row = rowOf(field);
 		const column = row.querySelector('select[name$="[col]"]')?.value;
 
@@ -232,12 +263,12 @@
 		}
 	});
 
-	search.addEventListener('focusin', event => {
+	addEventListener('focusin', event => {
 		if (event.target.dataset?.igDate) {
 			open(event.target);
 		}
 	});
-	search.addEventListener('click', event => {
+	addEventListener('click', event => {
 		if (event.target.dataset?.igDate && cal.hidden) {
 			open(event.target);
 		}
@@ -256,6 +287,8 @@
 			input?.focus();
 		}
 	});
+
+	markEditFields();
 
 	addEventListener('resize', () => field && place());
 	addEventListener('scroll', () => field && place(), true);
