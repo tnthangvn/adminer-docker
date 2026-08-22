@@ -1,0 +1,40 @@
+Adminer Instrument
+==================
+
+This image redistributes third-party software. The components and their
+licences are listed below; nothing here changes their terms.
+
+
+Adminer
+-------
+https://www.adminer.org/  ·  https://github.com/vrana/adminer
+Copyright (c) Jakub Vrana and contributors
+Licensed under the Apache License 2.0 OR GPL-2.0-only, at your option.
+
+Redistributed unmodified as:
+
+    /app/adminer.php          the 5.4.1 release artifact, copied from the
+                              official `adminer` image at build time
+    /app/plugins/             the plugins and drivers shipped with it
+    /app/plugins/drivers/redis.php
+                              published only from 6.0.x, fetched from
+                              adminer.org; it speaks RESP over fsockopen and
+                              runs against the 5.4.1 core unchanged
+
+Apache 2.0: https://www.apache.org/licenses/LICENSE-2.0
+GPL 2.0:    https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+
+
+Alpine Linux and PHP
+--------------------
+https://alpinelinux.org/  ·  https://www.php.net/
+The base image and the php84 packages carry their own licences, unmodified.
+PHP is under the PHP License 3.01.
+
+
+This project
+------------
+Everything under src/ and theme/ — the bootstrap, the Instrument theme, the
+schema walker, the row inspector, the calendar and the searchable selects — is
+original work, licensed under the Apache License 2.0 to match the application
+it extends.

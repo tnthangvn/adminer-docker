@@ -1,0 +1,56 @@
+name: publish
+
+# Builds for amd64 and arm64 and pushes to Docker Hub. Runs on a version tag,
+# or by hand from the Actions tab.
+#
+# Needs two repository secrets:
+#   DOCKERHUB_USERNAME   your Docker Hub account
+#   DOCKERHUB_TOKEN      an access token from hub.docker.com/settings/security
+#                        (a token, not your password — it can be revoked alone)
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Image tag to publish
+        default: 5.4.1
+        required: true
+
+env:
+  IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/adminer-instrument
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The runner is amd64; this is what lets it emit an arm64 layer too.
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=${{ inputs.tag || '5.4.1' }}
+            type=ref,event=tag
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
