@@ -61,7 +61,7 @@ COPY --from=upstream --chown=root:root /var/www/html/plugins ./plugins
 COPY --chown=root:root src/index.php ./index.php
 # One structure layer, two token sets, served as separate files — so this
 # directory can be bind-mounted for live editing without a rebuild.
-COPY --chown=root:root theme/core.css theme/tokens-dark.css theme/tokens-light.css ./theme/
+COPY --chown=root:root theme/ ./theme/
 
 RUN rm -f plugins/README.md && chmod -R a-w /app
 

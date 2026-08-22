@@ -115,6 +115,25 @@ namespace Instrument {
             }
         }
 
+        /**
+         * On the schema page only, adds the walker that replaces Adminer's
+         * thousand-em diagram. Returns null so Adminer still prints its own
+         * head — this only appends to it.
+         */
+        final class SchemaWalker extends \Adminer\Plugin
+        {
+            public function head($dark = null): ?bool
+            {
+                if (isset($_GET['schema'])) {
+                    $stamp = @filemtime(__DIR__ . '/theme/schema.js') ?: 0;
+                    echo '<link rel="stylesheet" href="theme/schema.css?v=' . $stamp . '">' . "\n";
+                    echo \Adminer\script_src("theme/schema.js?v=$stamp", true);
+                }
+
+                return null;
+            }
+        }
+
         /** Prefills the login form from ADMINER_DEFAULT_* variables. */
         final class LoginDefaults extends \Adminer\Plugin
         {
@@ -153,7 +172,7 @@ namespace Instrument {
             }
         }
 
-        $plugins = [new Theme(), new LoginDefaults()];
+        $plugins = [new Theme(), new SchemaWalker(), new LoginDefaults()];
         foreach (plugin_names() as $name) {
             array_push($plugins, ...load($name));
         }

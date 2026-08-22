@@ -86,6 +86,26 @@ What that changes in practice:
 - **SQL highlighting** reuses the data spectrum, so a query and the rows it
   returns speak one colour language.
 
+## Schema walker
+
+Adminer renders `?schema=` as one absolutely-positioned column — on this
+database, 155 tables stacked into a `3097em` page with connector lines drawn
+over the top. It is a list, not a diagram.
+
+The walker replaces it with the view the question actually has: **one table in
+focus, what it references on the left, what references it on the right.** Click
+a neighbour to walk to it; the trail across the top is where you have been, with
+the current table in amber. Foreign keys are drawn as curves that flow towards
+the table being referenced, so direction is readable without arrowheads. Hover a
+neighbour to light its key and dim the rest. `#table` in the URL is a deep link,
+and `Adminer diagram` toggles the original back.
+
+None of this costs a query — it is read back out of Adminer's own markup, where
+`.references` already carries the related table in `title` and the column in its
+`top` offset. Files: [`theme/schema.js`](theme/schema.js),
+[`theme/schema.css`](theme/schema.css); the plugin that loads them on that one
+page lives in `src/index.php`.
+
 ### Editing it
 
 `theme/core.css` holds the structure, `theme/tokens-dark.css` and

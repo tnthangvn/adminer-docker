@@ -1,0 +1,133 @@
+/* Instrument — schema walker
+   Loaded only on the schema page. Depends on the palette tokens; adds no
+   colours of its own. */
+
+.ig-walking #schema { display: none; }
+#content:not(.ig-walking) .ig-stage,
+#content:not(.ig-walking) .ig-trail,
+#content:not(.ig-walking) .ig-search { display: none; }
+
+.ig-schema { margin-top: 16px; }
+
+/* --- bar ----------------------------------------------------------------- */
+
+.ig-bar {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding-bottom: 12px; border-bottom: 1px solid var(--edge);
+}
+.ig-search { width: 220px; font: 12px/1.5 var(--mono); }
+.ig-trail {
+  flex: 1 1 auto; min-width: 0;
+  font: 11.5px/1.6 var(--mono); color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ig-trail > * + *::before { content: " › "; color: var(--faint); }
+.ig-trail > span { color: var(--amber); }        /* where you are standing */
+.ig-raw {
+  font: 11px/1.5 var(--ui); color: var(--muted);
+  background: none; border: 1px solid var(--edge); border-radius: 3px;
+  padding: 3px 9px; cursor: pointer;
+}
+.ig-raw:hover { border-color: var(--amber); color: var(--amber); }
+
+/* --- stage --------------------------------------------------------------- */
+
+.ig-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(300px, 420px) minmax(180px, 1fr);
+  gap: 56px;
+  align-items: start;
+  padding: 24px 0 40px;
+}
+
+.ig-links { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.ig-link {
+  fill: none;
+  stroke: var(--muted);
+  stroke-opacity: .5;
+  stroke-width: 1.25;
+}
+.ig-flowing {
+  stroke-dasharray: 5 9;
+  animation: ig-flow 1.4s linear infinite;
+}
+@keyframes ig-flow { to { stroke-dashoffset: -14; } }
+
+.ig-tracing .ig-link { opacity: .3; }
+.ig-link.ig-lit {
+  opacity: 1; stroke: var(--amber); stroke-opacity: 1; stroke-width: 1.75;
+  animation-duration: .7s;
+}
+
+/* --- side columns -------------------------------------------------------- */
+
+.ig-side {
+  display: flex; flex-direction: column; gap: 8px;
+  min-width: 0; max-height: 70vh; overflow-y: auto; scrollbar-width: thin;
+}
+.ig-parents { text-align: right; }
+
+.ig-side-head {
+  margin: 0 0 2px; font: 600 10px/1.4 var(--ui);
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+.ig-side-head.ig-empty { color: var(--faint); }
+
+/* --- cards --------------------------------------------------------------- */
+
+.ig-card {
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+  padding: 8px 11px;
+}
+.ig-side .ig-card { cursor: pointer; transition: border-color .12s, transform .12s; }
+.ig-side .ig-card:hover { border-color: var(--amber); transform: translateY(-1px); }
+@media (prefers-reduced-motion: reduce) {
+  .ig-side .ig-card { transition: none; }
+  .ig-side .ig-card:hover { transform: none; }
+}
+
+.ig-card header { display: flex; align-items: baseline; gap: 10px; justify-content: space-between; min-width: 0; }
+.ig-card b {
+  font: 500 12px/1.5 var(--mono); color: var(--fg);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ig-parents .ig-card header { flex-direction: row-reverse; }
+.ig-via   { font: 10px/1.5 var(--mono); color: var(--faint); }
+.ig-meta  { margin: 3px 0 0; font: 10px/1.4 var(--ui); color: var(--muted); }
+
+/* --- the table in focus -------------------------------------------------- */
+
+.ig-focus-card { padding: 0; box-shadow: 0 18px 40px -28px var(--shadow); }
+.ig-focus-card header {
+  padding: 10px 13px; border-bottom: 1px solid var(--edge);
+}
+.ig-focus-card b { font-size: 13px; }
+.ig-open { font: 11px/1.5 var(--ui); color: var(--muted); }
+
+.ig-cols { list-style: none; margin: 0; padding: 4px 0; }
+.ig-cols li {
+  display: flex; align-items: baseline; gap: 9px;
+  padding: 3px 13px;
+  border-left: 2px solid transparent;
+}
+.ig-cols li:hover { background: var(--raise); }
+.ig-cols .ig-pk { border-left-color: var(--amber); }
+
+.ig-col  { font: 12px/1.5 var(--mono); color: var(--fg); }
+.ig-type { font: 10px/1.5 var(--mono); color: var(--muted);
+           margin-left: auto; white-space: nowrap; }
+.ig-fk   { font: 10px/1.5 var(--mono); color: var(--t-enum); }
+.ig-ref  { font: 10px/1.5 var(--mono); color: var(--t-null); }
+
+/* --- narrow -------------------------------------------------------------- */
+
+@media all and (max-width: 900px) {
+  .ig-stage { grid-template-columns: 1fr; gap: 20px; }
+  .ig-links { display: none; }          /* nothing meaningful left to connect */
+  .ig-parents, .ig-children { align-items: stretch; max-height: none; }
+  .ig-parents .ig-card { text-align: left; }
+}
