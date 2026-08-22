@@ -105,7 +105,12 @@
 				val.type = 'text';
 				val.dataset.igDate = kind;
 				val.placeholder = kind === 'date' ? 'YYYY-MM-DD' : 'YYYY-MM-DD hh:mm:ss';
+				// A plain text box invites Chrome's saved-value dropdown, which
+				// lands on top of the calendar.
+				val.autocomplete = 'off';
+				val.spellcheck = false;
 			} else {
+				val.autocomplete = '';
 				delete val.dataset.igDate;
 				val.placeholder = '';
 				const type = kind === 'number' ? 'number' : kind === 'time' ? 'time' : 'text';

@@ -58,6 +58,8 @@
 				input.type = 'text';
 				input.dataset.igDate = kind;
 				input.placeholder = kind === 'date' ? 'YYYY-MM-DD' : 'YYYY-MM-DD hh:mm:ss';
+				input.autocomplete = 'off';   // else Chrome's history covers the calendar
+				input.spellcheck = false;
 			}
 		}
 	}
@@ -85,7 +87,7 @@
 			<div class="ig-cal-week">${WEEKDAYS.map(d => `<span>${d}</span>`).join('')}</div>
 			<div class="ig-cal-grid"></div>
 			<footer>
-				<label class="ig-cal-time" hidden>time <input type="text" placeholder="00:00:00" spellcheck="false"></label>
+				<label class="ig-cal-time" hidden>time <input type="text" placeholder="00:00:00" spellcheck="false" autocomplete="off"></label>
 				<span class="ig-cal-range" hidden></span>
 				<button type="button" class="ig-cal-apply" hidden>Apply</button>
 				<button type="button" class="ig-cal-clear">clear</button>
