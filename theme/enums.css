@@ -1,0 +1,16 @@
+/* Instrument — PostgreSQL enum support
+   Loaded on any page showing a table that has an enum column. */
+
+.ig-enum-list {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  margin-top: 4px;
+}
+.ig-enum {
+  font: 10px/1.4 var(--mono);
+  color: var(--t-enum);
+  background: color-mix(in srgb, var(--t-enum) 12%, transparent);
+  border-radius: 2px;
+  padding: 1px 6px;
+}
+
+.ig-enum-select { font: 12px/1.4 var(--mono); min-width: 18ex; }

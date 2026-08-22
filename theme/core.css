@@ -115,7 +115,9 @@ h3 {
 
   #lang       { position: static; padding: 10px 16px; }
   #content    { margin: 40px 0 0 19em; padding: 0 24px 64px; }
-  #breadcrumb { left: 19em; right: 0; width: auto; }
+  /* Fixed, not absolute: it has to keep covering the top 32px once the page
+     scrolls, otherwise rows slide up into the gap above the sticky header. */
+  #breadcrumb { position: fixed; left: 19em; right: 0; width: auto; }
   .logout     { position: fixed; top: 0; right: 0; height: 32px; line-height: 32px;
                 padding: 0 14px 0 0; margin: 0; background: none; box-shadow: none; z-index: 3; }
 }
@@ -200,7 +202,7 @@ td:last-child, th:last-child { border-right: 0; }
 /* the column header is the one place the grid earns a lift: when the body
    scrolls under it, a soft shadow separates the sticky head from the rows. */
 thead th, thead td {
-  position: sticky; top: 32px;         /* clears the breadcrumb bar */
+  position: sticky; top: 33px;         /* the fixed path bar, plus its hairline */
   background: color-mix(in srgb, var(--raise) 22%, var(--panel));
   border-bottom: 1px solid var(--edge);
   box-shadow: 0 1px 0 var(--edge), 0 8px 10px -10px var(--sink);

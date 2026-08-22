@@ -86,6 +86,36 @@ What that changes in practice:
 - **SQL highlighting** reuses the data spectrum, so a query and the rows it
   returns speak one colour language.
 
+## Row inspector
+
+Reading a row in the grid means fighting two things: every value is truncated to
+TEXT LENGTH, and a wide table pushes the interesting columns off the right edge.
+
+The `⌗` button on each row slides a panel over the grid with the whole row —
+column, declared type, and the **full** value, fetched from the edit form rather
+than read off the truncated cell. JSON columns are pretty-printed. Click any
+field to copy just that value, or `Copy JSON` for the row. `Edit` and `Clone`
+hand off to Adminer's own machinery. `↑`/`↓` walk to the next row without
+closing, `Esc` closes.
+
+## Typed search
+
+Adminer gives every column the same text box, so filtering on a timestamp means
+typing `2026-07-24 09:30:00` by hand. The column types are already in the table
+header, so the value field follows the column: a date picker for `date`, a
+datetime picker for `timestamp` (the `T` is rewritten to a space on submit), a
+number spinner for numerics, `true`/`false` for booleans, and the allowed labels
+for an enum. The operator also stops defaulting to `LIKE %%` on types where it
+makes no sense — until you pick one yourself, after which it is left alone.
+
+## PostgreSQL enums
+
+A PostgreSQL enum is a named type, so Adminer only ever sees the name: the
+structure page prints `"EMPLOYMENT_TYPE"` and the edit form gives you a free
+text box. One join against `pg_enum` fixes all three places — the structure page
+lists the allowed labels, the edit form becomes a real dropdown, and the search
+box offers the values.
+
 ## Schema walker
 
 Adminer renders `?schema=` as one absolutely-positioned column — on this
@@ -129,6 +159,9 @@ src/adminer.php         upstream 5.4.1, copied at build time
 src/plugins/            upstream plugins, all available via ADMINER_PLUGINS
 theme/core.css          structure layer, colour-free
 theme/tokens-*.css      the two palettes
+theme/schema.*          the schema walker
+theme/select.*          row inspector and typed search
+theme/enums.*           PostgreSQL enum labels
 ```
 
 `src/index.php` is the only application code here. It runs before `adminer.php`,

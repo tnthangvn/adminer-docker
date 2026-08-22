@@ -116,21 +116,85 @@ namespace Instrument {
         }
 
         /**
-         * On the schema page only, adds the walker that replaces Adminer's
-         * thousand-em diagram. Returns null so Adminer still prints its own
-         * head — this only appends to it.
+         * Loads the per-page enhancements: the schema walker, and the row
+         * inspector plus typed search on select pages. Returns null so Adminer
+         * still prints its own head — this only appends to it.
          */
-        final class SchemaWalker extends \Adminer\Plugin
+        final class PageAssets extends \Adminer\Plugin
         {
+            /** Page flag in $_GET => asset basename in theme/. */
+            private const PAGES = ['schema' => 'schema', 'select' => 'select'];
+
             public function head($dark = null): ?bool
             {
-                if (isset($_GET['schema'])) {
-                    $stamp = @filemtime(__DIR__ . '/theme/schema.js') ?: 0;
-                    echo '<link rel="stylesheet" href="theme/schema.css?v=' . $stamp . '">' . "\n";
-                    echo \Adminer\script_src("theme/schema.js?v=$stamp", true);
+                $assets = [];
+                foreach (self::PAGES as $flag => $asset) {
+                    if (isset($_GET[$flag])) {
+                        $assets[] = $asset;
+                    }
+                }
+
+                if ($this->enumColumns()) {
+                    echo \Adminer\script('window.igEnums = ' . json_encode($this->enumColumns()) . ';');
+                    $assets[] = 'enums';
+                }
+
+                foreach ($assets as $asset) {
+                    $stamp = @filemtime(__DIR__ . "/theme/$asset.js") ?: 0;
+                    echo '<link rel="stylesheet" href="theme/' . $asset . '.css?v=' . $stamp . '">' . "\n";
+                    echo \Adminer\script_src("theme/$asset.js?v=$stamp", true);
                 }
 
                 return null;
+            }
+
+            /**
+             * Column => allowed labels, for the table on screen.
+             *
+             * PostgreSQL enums are named types, so Adminer reports the column
+             * as `"EMPLOYMENT_TYPE"` and never learns what may go in it — the
+             * edit form gives you a free text box and the structure page shows
+             * a type nobody can expand. The labels are one join away.
+             *
+             * @return array<string, list<string>>
+             */
+            private function enumColumns(): array
+            {
+                static $columns = null;
+                if ($columns !== null) {
+                    return $columns;
+                }
+
+                $columns = [];
+                $table = $_GET['table'] ?? $_GET['select'] ?? $_GET['edit'] ?? '';
+                if ($table === '' || \Adminer\DRIVER !== 'pgsql') {
+                    return $columns;
+                }
+
+                try {
+                    $labels = [];
+                    $rows = \Adminer\get_rows(
+                        'SELECT t.typname, e.enumlabel FROM pg_type t'
+                        . ' JOIN pg_enum e ON e.enumtypid = t.oid'
+                        . ' ORDER BY t.typname, e.enumsortorder', null, '');
+                    foreach ($rows as $row) {
+                        $labels[$row['typname']][] = $row['enumlabel'];
+                    }
+                    if (!$labels) {
+                        return $columns;
+                    }
+
+                    foreach (\Adminer\fields($table) as $name => $field) {
+                        $type = trim((string) $field['type'], '"');
+                        if (isset($labels[$type])) {
+                            $columns[$name] = $labels[$type];
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    error_log('adminer: enum lookup failed: ' . $e->getMessage());
+                }
+
+                return $columns;
             }
         }
 
@@ -172,7 +236,7 @@ namespace Instrument {
             }
         }
 
-        $plugins = [new Theme(), new SchemaWalker(), new LoginDefaults()];
+        $plugins = [new Theme(), new PageAssets(), new LoginDefaults()];
         foreach (plugin_names() as $name) {
             array_push($plugins, ...load($name));
         }

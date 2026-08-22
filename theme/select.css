@@ -1,0 +1,124 @@
+/* Instrument — row inspector and typed search
+   Loaded only on select pages. Uses the palette tokens; adds no colours. */
+
+/* --- the peek button in each row ---------------------------------------- */
+
+.ig-peek {
+  background: none; border: 0; cursor: pointer;
+  color: var(--faint); font: 12px/1 var(--mono);
+  padding: 1px 4px; margin-left: 2px; border-radius: 3px;
+}
+.ig-peek:hover { color: var(--amber); background: var(--raise); }
+tbody tr.ig-peeking > :first-child { box-shadow: inset 2px 0 0 var(--amber); }
+tbody tr.ig-peeking td, tbody tr.ig-peeking th { background: var(--sel); }
+
+/* --- typed search fields -------------------------------------------------- */
+
+#fieldset-search input.ig-typed {
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--edge));
+}
+#fieldset-search input[type="date"],
+#fieldset-search input[type="datetime-local"],
+#fieldset-search input[type="time"] {
+  font: 12px/1.4 var(--mono);
+}
+#fieldset-search ::-webkit-calendar-picker-indicator { filter: invert(.6); cursor: pointer; }
+
+/* --- the drawer ----------------------------------------------------------- */
+
+.ig-drawer {
+  position: fixed; inset: 0 0 0 auto;
+  width: min(460px, 100vw);
+  display: flex; flex-direction: column;
+  background: var(--panel);
+  border-left: 1px solid var(--edge);
+  box-shadow: -24px 0 60px -30px var(--shadow);
+  z-index: 40;
+  animation: ig-slide .16s ease-out;
+}
+@keyframes ig-slide { from { transform: translateX(18px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ig-drawer { animation: none; } }
+
+.ig-drawer[hidden] { display: none; }
+body.ig-drawer-open { overflow-x: hidden; }
+
+.ig-drawer-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 13px 16px; border-bottom: 1px solid var(--edge);
+}
+.ig-drawer-title { display: block; font: 500 13px/1.4 var(--mono); color: var(--fg); }
+.ig-drawer-key {
+  display: block; margin-top: 2px;
+  font: 11px/1.4 var(--mono); color: var(--amber);
+  word-break: break-all;
+}
+.ig-drawer-close {
+  background: none; border: 0; cursor: pointer;
+  color: var(--muted); font: 18px/1 var(--ui); padding: 2px 6px;
+}
+.ig-drawer-close:hover { color: var(--amber); }
+
+.ig-tabs {
+  display: flex; align-items: center; gap: 4px;
+  padding: 8px 12px; border-bottom: 1px solid var(--edge);
+}
+.ig-tabs button {
+  background: none; border: 1px solid transparent; border-radius: 3px;
+  color: var(--muted); font: 11px/1.5 var(--ui); padding: 3px 10px; cursor: pointer;
+}
+.ig-tabs button:hover { color: var(--fg); }
+.ig-tabs button.ig-on { color: var(--amber); border-color: var(--edge); background: var(--raise); }
+.ig-loading { margin-left: auto; font: 10px/1.5 var(--ui); color: var(--faint); }
+
+.ig-drawer-body { flex: 1 1 auto; overflow: auto; scrollbar-width: thin; }
+
+/* --- fields view ---------------------------------------------------------- */
+
+.ig-fields { margin: 0; padding: 4px 0; }
+.ig-field {
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--rule);
+  cursor: copy;
+}
+.ig-field:hover { background: var(--raise); }
+.ig-field.ig-copied { background: var(--sel); }
+
+.ig-field dt { display: flex; align-items: baseline; gap: 8px; margin: 0 0 3px; }
+.ig-name { font: 500 11px/1.4 var(--mono); color: var(--muted); }
+.ig-kind { font: 10px/1.4 var(--mono); color: var(--faint); margin-left: auto; }
+
+.ig-field dd {
+  margin: 0;
+  font: 12px/1.5 var(--mono);
+  color: var(--fg);
+  word-break: break-word; white-space: pre-wrap;
+}
+.ig-null {
+  font: 500 10px/1.5 var(--mono); font-style: normal; letter-spacing: .08em;
+  color: var(--t-null); border-bottom: 1px dotted var(--t-null);
+}
+.ig-json {
+  margin: 0; padding: 8px 10px;
+  background: var(--ink); border: 1px solid var(--edge); border-radius: 3px;
+  font: 11.5px/1.5 var(--mono); color: var(--t-str);
+  white-space: pre; overflow-x: auto; scrollbar-width: thin;
+}
+.ig-json-all { border: 0; border-radius: 0; background: none; padding: 14px 16px; color: var(--fg); }
+
+/* --- footer --------------------------------------------------------------- */
+
+.ig-drawer-foot {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border-top: 1px solid var(--edge);
+}
+.ig-drawer-foot button {
+  background: var(--raise); color: var(--fg);
+  border: 1px solid var(--edge); border-radius: 3px;
+  font: 11px/1.5 var(--ui); padding: 4px 11px; cursor: pointer;
+}
+.ig-drawer-foot button:hover { border-color: var(--amber); color: var(--amber); }
+.ig-nav { margin-left: auto; font: 10px/1.5 var(--mono); color: var(--faint); }
+
+@media all and (max-width: 800px) {
+  .ig-drawer { width: 100vw; }
+}
