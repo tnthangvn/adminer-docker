@@ -123,8 +123,12 @@ h3 {
 #menu form:has(#dbs)       { order: 2; }
 #menu .links               { order: 3; }
 #menu p:has(#filter-field) { order: 4; }
+/* !important is load-bearing: Adminer's menuOut() stamps `overflow: hidden`
+   straight onto the element's style attribute every time the pointer leaves the
+   list, which would otherwise kill the scrollbar. That handler exists to let a
+   long name spill out of the sidebar on hover; the fade below covers it. */
 #menu #tables              { order: 5; flex: 1 1 auto; min-height: 0;
-                             overflow-y: auto; overflow-x: hidden; }
+                             overflow-y: auto !important; overflow-x: hidden; }
 #menu form:has(#lang)      { order: 9; border-top: 1px solid var(--edge);
                              background: color-mix(in srgb, var(--ink) 40%, var(--panel)); }
 
