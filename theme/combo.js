@@ -1,9 +1,10 @@
 /**
  * Instrument — searchable selects
  *
- * A table with forty columns turns every "which column?" dropdown into a
- * scroll hunt: sort, search, foreign keys, the database list. Past ten options
- * a list needs a filter, so any select longer than that gets one.
+ * Every select on the page becomes one, so the dropdown finally matches the
+ * rest of the interface — a native <select> popup is drawn by the OS and no
+ * stylesheet can reach it. Past ten options the list also gets a filter box,
+ * because a forty-column table turns "which column?" into a scroll hunt.
  *
  * The native <select> stays in the DOM and stays authoritative — it is what the
  * form submits, and Adminer has already bound its own onchange handlers to it
@@ -14,7 +15,7 @@
 (() => {
 	'use strict';
 
-	const THRESHOLD = 10;
+	const FILTER_FROM = 10;   // shorter lists do not need a filter box
 
 	const pop = document.createElement('div');
 	pop.className = 'ig-combo-pop';
@@ -36,14 +37,16 @@
 
 	/* --- attaching ---------------------------------------------------------- */
 
+	const BLANK = '\u2014';   // an option with no text still needs a shape
+
 	function label(select) {
 		const option = select.selectedOptions[0];
-		return option ? option.textContent.trim() : '';
+		return (option ? option.textContent.trim() : '') || BLANK;
 	}
 
 	function attach(select) {
 		if (wired.has(select) || select.multiple || select.size > 1
-			|| select.options.length <= THRESHOLD || select.closest('.ig-combo-pop')) {
+			|| select.closest('.ig-combo-pop')) {
 			return;
 		}
 		wired.add(select);
@@ -87,10 +90,12 @@
 		}));
 
 		search.value = '';
+		search.hidden = items.length <= FILTER_FROM;
+		pop.classList.toggle('ig-combo-short', search.hidden);
 		paint('');
 		pop.hidden = false;
 		place();
-		search.focus();
+		(search.hidden ? list : search).focus();
 	}
 
 	function close() {
@@ -126,7 +131,8 @@
 			li.textContent = item.label || ' ';
 			li.className = 'ig-combo-item'
 				+ (item.index === open.select.selectedIndex ? ' ig-combo-current' : '')
-				+ (item.disabled ? ' ig-combo-disabled' : '');
+				+ (item.disabled ? ' ig-combo-disabled' : '')
+				+ (item.label ? '' : ' ig-combo-blank');
 			if (item.group) {
 				li.dataset.group = item.group;
 			}
@@ -163,7 +169,11 @@
 
 	search.addEventListener('input', () => paint(search.value));
 
-	search.addEventListener('keydown', event => {
+	list.tabIndex = -1;
+	list.addEventListener('keydown', event => keys(event));
+	search.addEventListener('keydown', event => keys(event));
+
+	function keys(event) {
 		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
 			event.preventDefault();
 			active = Math.max(0, Math.min(list.children.length - 1, active + (event.key === 'ArrowDown' ? 1 : -1)));
@@ -179,7 +189,7 @@
 		} else if (event.key === 'Tab') {
 			close();
 		}
-	});
+	}
 
 	list.addEventListener('click', event => pick(event.target.closest('.ig-combo-item')));
 

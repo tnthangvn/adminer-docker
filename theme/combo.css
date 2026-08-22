@@ -53,6 +53,9 @@
   font: 12px/1.4 var(--mono);
 }
 .ig-combo-search:focus { outline: none; }
+.ig-combo-search[hidden] { display: none; }
+.ig-combo-short .ig-combo-list { padding: 4px 0; }
+.ig-combo-list:focus { outline: none; }
 
 .ig-combo-list {
   flex: 1 1 auto; overflow-y: auto; scrollbar-width: thin;
@@ -73,6 +76,7 @@
 .ig-combo-active  { background: var(--raise); }
 .ig-combo-current { color: var(--amber); border-left-color: var(--amber); }
 .ig-combo-disabled { color: var(--faint); cursor: default; }
+.ig-combo-blank    { color: var(--faint); }
 
 .ig-combo-empty {
   margin: 0; padding: 10px 12px;
