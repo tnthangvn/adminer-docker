@@ -127,7 +127,7 @@ namespace Instrument {
 
             public function head($dark = null): ?bool
             {
-                $assets = [];
+                $assets = ['combo'];          // every page has a long select somewhere
                 foreach (self::PAGES as $flag => $asset) {
                     if (isset($_GET[$flag])) {
                         $assets[] = $asset;

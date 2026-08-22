@@ -86,6 +86,17 @@ What that changes in practice:
 - **SQL highlighting** reuses the data spectrum, so a query and the rows it
   returns speak one colour language.
 
+## Searchable selects
+
+Past ten options a dropdown is a scroll hunt — "which column?" on a forty-column
+table, the foreign-key pickers, the database list. Any select longer than that
+gets a filter box: type to narrow, arrows to move, Enter to pick.
+
+The native `<select>` stays in the DOM and stays authoritative. It is what the
+form submits, and Adminer has already bound its own `onchange` handlers to it by
+the time this runs, so the combobox only sets a value and fires `change` —
+everything downstream behaves as if you had used the dropdown.
+
 ## Row inspector
 
 Reading a row in the grid means fighting two things: every value is truncated to
@@ -162,6 +173,7 @@ theme/tokens-*.css      the two palettes
 theme/schema.*          the schema walker
 theme/select.*          row inspector and typed search
 theme/enums.*           PostgreSQL enum labels
+theme/combo.*           searchable selects, on every page
 ```
 
 `src/index.php` is the only application code here. It runs before `adminer.php`,

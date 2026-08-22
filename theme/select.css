@@ -47,7 +47,6 @@ tbody tr.ig-peeking td, tbody tr.ig-peeking th { background: var(--sel); }
 @media (prefers-reduced-motion: reduce) { .ig-drawer { animation: none; } }
 
 .ig-drawer[hidden] { display: none; }
-body.ig-drawer-open { overflow-x: hidden; }
 
 .ig-drawer-head {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;

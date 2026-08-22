@@ -1,0 +1,80 @@
+/* Instrument — searchable selects
+   Loaded on every page. Uses the palette tokens; adds no colours. */
+
+.ig-combo { display: inline-block; vertical-align: middle; max-width: 100%; }
+.ig-combo-native { display: none; }
+
+.ig-combo-button {
+  display: inline-flex; align-items: center; gap: 8px;
+  max-width: 100%; min-width: 12ex;
+  background: var(--ink);
+  color: var(--fg);
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  padding: 4px 24px 4px 8px;
+  font: 12px/1.4 var(--mono);
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ig-combo-button::after {
+  content: "";
+  position: absolute; right: 8px; top: 50%;
+  width: 5px; height: 5px; margin-top: -4px;
+  border-right: 1px solid var(--muted); border-bottom: 1px solid var(--muted);
+  transform: rotate(45deg);
+}
+.ig-combo-button:hover { border-color: var(--muted); }
+.ig-combo-button[aria-expanded="true"] { border-color: var(--amber); }
+.ig-combo-unset { color: var(--muted); }
+
+/* --- the popup ------------------------------------------------------------ */
+
+.ig-combo-pop {
+  position: fixed; z-index: 60;
+  display: flex; flex-direction: column;
+  max-width: min(420px, calc(100vw - 16px));
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  box-shadow: 0 18px 44px -20px var(--shadow);
+  overflow: hidden;
+}
+.ig-combo-pop[hidden] { display: none; }
+
+.ig-combo-search {
+  flex: 0 0 auto;
+  background: var(--ink);
+  color: var(--fg);
+  border: 0; border-bottom: 1px solid var(--edge);
+  border-radius: 0;
+  padding: 7px 10px;
+  font: 12px/1.4 var(--mono);
+}
+.ig-combo-search:focus { outline: none; }
+
+.ig-combo-list {
+  flex: 1 1 auto; overflow-y: auto; scrollbar-width: thin;
+  list-style: none; margin: 0; padding: 4px 0;
+}
+.ig-combo-item {
+  padding: 4px 12px;
+  font: 12px/1.5 var(--mono);
+  color: var(--fg);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ig-combo-item[data-group]::before {
+  content: attr(data-group) " / ";
+  color: var(--faint);
+}
+.ig-combo-active  { background: var(--raise); }
+.ig-combo-current { color: var(--amber); border-left-color: var(--amber); }
+.ig-combo-disabled { color: var(--faint); cursor: default; }
+
+.ig-combo-empty {
+  margin: 0; padding: 10px 12px;
+  font: 11px/1.4 var(--ui); color: var(--faint);
+}

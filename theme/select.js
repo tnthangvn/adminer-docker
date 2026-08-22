@@ -76,6 +76,9 @@
 		const INPUT_TYPE = { date: 'date', datetime: 'datetime-local', time: 'time', number: 'number' };
 
 		function adapt(row) {
+			if (!row) {
+				return;
+			}
 			const col = row.querySelector('select[name$="[col]"]');
 			const op = row.querySelector('select[name$="[op]"]');
 			const val = row.querySelector('input[name$="[val]"]');
@@ -120,16 +123,19 @@
 			}
 		}
 
-		const rows = () => search.querySelectorAll('div:has(> select[name$="[col]"])');
+		// The searchable-select wrapper sits between the select and its row, so
+		// walk up from the column select rather than matching on shape.
+		const rowOf = el => el.closest('.ig-combo')?.parentElement ?? el.parentElement;
+		const rows = () => [...search.querySelectorAll('select[name$="[col]"]')].map(rowOf);
 
 		search.addEventListener('change', event => {
-			const row = event.target.closest('div');
-			if (event.target.name?.endsWith('[op]')) {
+			if (!event.target.name) {
+				return;
+			}
+			if (event.target.name.endsWith('[op]')) {
 				event.target.dataset.igTouched = '1';
 			}
-			if (row) {
-				adapt(row);
-			}
+			adapt(rowOf(event.target));
 		});
 
 		// Adminer appends a fresh row as soon as you fill the last one.
@@ -287,7 +293,6 @@
 		paint();
 
 		drawer.hidden = false;
-		document.body.classList.add('ig-drawer-open');
 		ui.loading.hidden = false;
 
 		try {
@@ -308,7 +313,6 @@
 	function close() {
 		token++;
 		drawer.hidden = true;
-		document.body.classList.remove('ig-drawer-open');
 		row?.classList.remove('ig-peeking');
 		row = null;
 	}
