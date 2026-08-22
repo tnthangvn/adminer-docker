@@ -6,10 +6,15 @@
  * stylesheet can reach it. Past ten options the list also gets a filter box,
  * because a forty-column table turns "which column?" into a scroll hunt.
  *
- * The native <select> stays in the DOM and stays authoritative — it is what the
- * form submits, and Adminer has already bound its own onchange handlers to it
- * by the time this runs. The combobox only sets its value and fires `change`,
- * so everything downstream behaves exactly as if you had used the dropdown.
+ * The native <select> stays in the DOM, in place, and stays authoritative — it
+ * is what the form submits, and Adminer has already bound its own onchange
+ * handlers to it by the time this runs. The combobox only sets its value and
+ * fires `change`, so everything downstream behaves as if you had used the
+ * dropdown.
+ *
+ * The button is inserted as the select's next sibling rather than wrapping it.
+ * Adminer's search form reaches for `this.parentNode.firstChild.onchange`, so
+ * anything put between a row and its column select breaks the page.
  */
 
 (() => {
@@ -51,9 +56,6 @@
 		}
 		wired.add(select);
 
-		const wrap = document.createElement('div');
-		wrap.className = 'ig-combo';
-
 		const button = document.createElement('button');
 		button.type = 'button';
 		button.className = 'ig-combo-button';
@@ -61,9 +63,8 @@
 		button.setAttribute('aria-expanded', 'false');
 		button.textContent = label(select);
 
-		select.replaceWith(wrap);
-		wrap.append(select, button);
 		select.classList.add('ig-combo-native');
+		select.after(button);
 
 		button.onclick = () => (open?.select === select ? close() : show(select, button));
 
@@ -208,18 +209,16 @@
 	 * Adminer grows the search form by cloning the last condition row. The clone
 	 * carries a copy of our button — same label, no handler, wired to nothing.
 	 * A cloned select is a different object, so the WeakSet tells them apart:
-	 * unwrap anything we do not own and build it again.
+	 * drop any button we do not own and build it again.
 	 */
 	function revive(root) {
-		for (const wrap of root.querySelectorAll?.('.ig-combo') ?? []) {
-			const select = wrap.querySelector('select');
-			if (!select || wired.has(select)) {
-				continue;
+		for (const button of root.querySelectorAll?.('.ig-combo-button') ?? []) {
+			const select = button.previousElementSibling;
+			if (select?.tagName === 'SELECT' && !wired.has(select)) {
+				button.remove();
+				select.classList.remove('ig-combo-native');
+				attach(select);
 			}
-			wrap.querySelectorAll('.ig-combo-button').forEach(button => button.remove());
-			select.classList.remove('ig-combo-native');
-			wrap.replaceWith(select);
-			attach(select);
 		}
 	}
 

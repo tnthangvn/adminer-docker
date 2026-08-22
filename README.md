@@ -102,12 +102,17 @@ everything downstream behaves as if you had used the dropdown.
 Reading a row in the grid means fighting two things: every value is truncated to
 TEXT LENGTH, and a wide table pushes the interesting columns off the right edge.
 
-The `⌗` button on each row slides a panel over the grid with the whole row —
-column, declared type, and the **full** value, fetched from the edit form rather
-than read off the truncated cell. JSON columns are pretty-printed. Click any
-field to copy just that value, or `Copy JSON` for the row. `Edit` and `Clone`
-hand off to Adminer's own machinery. `↑`/`↓` walk to the next row without
-closing, `Esc` closes.
+Click a row — which already ticks it, Adminer's own selection — and a panel
+slides over the grid with the whole row: column, declared type, and the **full**
+value, fetched from the edit form rather than read off the truncated cell. JSON
+columns are pretty-printed.
+
+Click a second row and both are in the panel, one collapsible section each,
+because comparing two rows is most of why you went looking. `Copy JSON` gives
+an object for one row and an array for several. `Edit` opens the row's own edit
+page, or Adminer's bulk edit for a selection; `Clone` goes through the same
+button the footer uses. Click any single field to copy just that value. `↑`/`↓`
+move the selection a row at a time, `Esc` closes.
 
 ## Typed search
 
@@ -174,6 +179,7 @@ theme/schema.*          the schema walker
 theme/select.*          row inspector and typed search
 theme/enums.*           PostgreSQL enum labels
 theme/combo.*           searchable selects, on every page
+theme/datepicker.*      the calendar and its range shortcuts
 ```
 
 `src/index.php` is the only application code here. It runs before `adminer.php`,

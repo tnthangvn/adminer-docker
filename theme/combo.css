@@ -1,11 +1,10 @@
 /* Instrument — searchable selects
    Loaded on every page. Uses the palette tokens; adds no colours. */
 
-.ig-combo { display: inline-block; vertical-align: middle; max-width: 100%; }
 .ig-combo-native { display: none; }
 
 .ig-combo-button {
-  display: inline-flex; align-items: center; gap: 8px;
+  display: inline-flex; vertical-align: middle; align-items: center; gap: 8px;
   max-width: 100%; min-width: 12ex;
   background: var(--ink);
   color: var(--fg);

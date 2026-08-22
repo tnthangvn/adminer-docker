@@ -123,14 +123,14 @@ namespace Instrument {
         final class PageAssets extends \Adminer\Plugin
         {
             /** Page flag in $_GET => asset basename in theme/. */
-            private const PAGES = ['schema' => 'schema', 'select' => 'select'];
+            private const PAGES = ['schema' => ['schema'], 'select' => ['select', 'datepicker']];
 
             public function head($dark = null): ?bool
             {
                 $assets = ['combo'];          // every page has a long select somewhere
-                foreach (self::PAGES as $flag => $asset) {
+                foreach (self::PAGES as $flag => $page) {
                     if (isset($_GET[$flag])) {
-                        $assets[] = $asset;
+                        array_push($assets, ...$page);
                     }
                 }
 

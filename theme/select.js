@@ -4,15 +4,16 @@
  * Two things the select page makes slow:
  *
  *   Reading a row. The grid truncates every value to TEXT LENGTH, and a wide
- *   table pushes the interesting columns off the right edge. The inspector
- *   slides a panel over the grid with the whole row, full values pulled from
- *   the edit form, and copy / edit / clone one key away.
+ *   table pushes the interesting columns off the right edge. Tick a row — which
+ *   is what clicking one already does — and the inspector shows it whole, with
+ *   full values pulled from the edit form. Tick a second and both are there,
+ *   because comparing two rows is most of why you opened it.
  *
  *   Searching a date. Adminer gives every column the same text box, so a
  *   timestamp means typing "2026-07-24 00:00:00" by hand. Column types are
  *   already in the table header, so the value field can match the column:
- *   a date picker for dates, a number spinner for numbers, true/false for
- *   booleans.
+ *   a calendar for dates, a number spinner for numbers, true/false for
+ *   booleans, the labels for an enum.
  */
 
 (() => {
@@ -23,6 +24,9 @@
 	if (!grid || !form) {
 		return;
 	}
+
+	const FETCH_LIMIT = 10;   // rows worth a request each for their full values
+	const SHOW_LIMIT = 25;    // rows to render at all
 
 	/** Column name -> declared type, straight out of the header cells. */
 	const types = new Map(
@@ -42,11 +46,13 @@
 		return 'text';
 	}
 
+	const escape = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
 	async function copy(text, button) {
 		try {
 			await navigator.clipboard.writeText(text);
 		} catch {
-			// Clipboard API needs a secure context; over plain http on a LAN
+			// The Clipboard API needs a secure context; over plain http on a LAN
 			// address it is not there.
 			const pad = document.createElement('textarea');
 			pad.value = text;
@@ -73,7 +79,10 @@
 		booleans.innerHTML = '<option value="true"><option value="false">';
 		search.append(booleans);
 
-		const INPUT_TYPE = { date: 'date', datetime: 'datetime-local', time: 'time', number: 'number' };
+		// The searchable-select wrapper sits between the select and its row, so
+		// walk up from the column select rather than matching on shape.
+		const rowOf = el => el.parentElement;
+		const rows = () => [...search.querySelectorAll('select[name$="[col]"]')].map(rowOf);
 
 		function adapt(row) {
 			if (!row) {
@@ -87,46 +96,50 @@
 			}
 
 			const kind = col.value ? family(types.get(col.value)) : 'text';
-			const type = INPUT_TYPE[kind] || 'text';
+			const wasTyped = val.dataset.igKind && val.dataset.igKind !== 'text';
 
-			if (val.type !== type) {
-				// Switching away from a picker leaves a value the text box
-				// cannot render; drop it rather than submit half of it.
-				if (val.type !== 'text' && type === 'text') {
-					val.value = '';
+			// Dates keep a plain text box holding an unambiguous YYYY-MM-DD; the
+			// calendar in datepicker.js drives it. The native field renders in
+			// the browser's locale and has nowhere to put a range shortcut.
+			if (kind === 'date' || kind === 'datetime') {
+				val.type = 'text';
+				val.dataset.igDate = kind;
+				val.placeholder = kind === 'date' ? 'YYYY-MM-DD' : 'YYYY-MM-DD hh:mm:ss';
+			} else {
+				delete val.dataset.igDate;
+				val.placeholder = '';
+				const type = kind === 'number' ? 'number' : kind === 'time' ? 'time' : 'text';
+				if (val.type !== type) {
+					if (wasTyped && type === 'text') {
+						val.value = '';       // a picker's value is not text-box shaped
+					}
+					val.type = type;
 				}
-				val.type = type;
 			}
+
 			// An enum column has a known set of answers; offer them.
 			const labels = window.igEnums?.[col.value];
-			if (labels) {
-				let list = document.getElementById('ig-enum-' + col.value);
-				if (!list) {
-					list = document.createElement('datalist');
-					list.id = 'ig-enum-' + col.value;
-					list.innerHTML = labels.map(l => `<option value="${l.replace(/"/g, '&quot;')}">`).join('');
-					search.append(list);
-				}
+			if (labels && !document.getElementById('ig-enum-' + col.value)) {
+				const list = document.createElement('datalist');
+				list.id = 'ig-enum-' + col.value;
+				list.innerHTML = labels.map(l => `<option value="${escape(l)}">`).join('');
+				search.append(list);
 			}
 
 			val.setAttribute('list', labels ? 'ig-enum-' + col.value : (kind === 'boolean' ? 'ig-booleans' : ''));
 			val.classList.toggle('ig-typed', kind !== 'text');
-			row.dataset.igKind = kind;
+			val.dataset.igKind = kind;
 
 			// "LIKE %%" is the right default for prose and useless for a
 			// timestamp. Only decide while the operator is still untouched.
 			if (op && !op.dataset.igTouched && kind !== 'text') {
 				const exact = [...op.options].find(o => o.value === '=');
-				if (exact) {
+				if (exact && op.value !== '=') {
 					op.value = '=';
+					op.dispatchEvent(new Event('change', { bubbles: true }));
 				}
 			}
 		}
-
-		// The searchable-select wrapper sits between the select and its row, so
-		// walk up from the column select rather than matching on shape.
-		const rowOf = el => el.closest('.ig-combo')?.parentElement ?? el.parentElement;
-		const rows = () => [...search.querySelectorAll('select[name$="[col]"]')].map(rowOf);
 
 		search.addEventListener('change', event => {
 			if (!event.target.name) {
@@ -135,33 +148,14 @@
 			if (event.target.name.endsWith('[op]')) {
 				event.target.dataset.igTouched = '1';
 			}
-			adapt(rowOf(event.target));
+			if (event.target.name.endsWith('[col]')) {
+				adapt(rowOf(event.target));
+			}
 		});
 
 		// Adminer appends a fresh row as soon as you fill the last one.
 		new MutationObserver(() => rows().forEach(adapt)).observe(search, { childList: true, subtree: true });
 		rows().forEach(adapt);
-
-		// A picker that only opens from its little calendar icon is a picker
-		// most people never find. Any click on the field opens it.
-		search.addEventListener('click', event => {
-			const val = event.target;
-			if (val.matches('input[type="date"], input[type="datetime-local"], input[type="time"]')) {
-				try {
-					val.showPicker();
-				} catch {
-					// Not supported, or the click did not count as activation —
-					// the icon still works.
-				}
-			}
-		});
-
-		// A datetime-local field hands back "2026-07-24T09:30"; SQL wants a space.
-		form.addEventListener('submit', () => {
-			for (const val of search.querySelectorAll('input[type="datetime-local"]')) {
-				val.value = val.value.replace('T', ' ');
-			}
-		});
 	}
 
 	/* =====================================================================
@@ -201,12 +195,15 @@
 		tabs: [...drawer.querySelectorAll('.ig-tabs button')],
 	};
 
-	let row = null;              // the <tr> on show
-	let values = {};             // column -> value, full where we have it
+	let shown = [];        // [{ tr, key, values }] in grid order
 	let view = 'fields';
-	let token = 0;               // guards against a slow fetch landing late
+	let token = 0;         // guards against a slow fetch landing late
+	let dismissed = '';    // the selection the drawer was closed on
 
 	const tableName = new URL(location.href).searchParams.get('select') || 'row';
+	const keyOf = tr => decodeURIComponent(
+		(tr.querySelector('input[name="check[]"]')?.value || '')
+			.replace(/^&/, '').replace(/where\[|\]/g, ''));
 
 	function readGrid(tr) {
 		const out = {};
@@ -227,14 +224,14 @@
 		const doc = new DOMParser().parseFromString(html, 'text/html');
 		const out = {};
 
-		for (const field of doc.querySelectorAll('[name^="fields["]')) {
-			const name = field.getAttribute('name').slice(7, -1);
-			if (field.type === 'checkbox' || field.type === 'radio') {
-				if (field.checked) {
-					out[name] = field.value;
+		for (const item of doc.querySelectorAll('[name^="fields["]')) {
+			const name = item.getAttribute('name').slice(7, -1);
+			if (item.type === 'checkbox' || item.type === 'radio') {
+				if (item.checked) {
+					out[name] = item.value;
 				}
 			} else {
-				out[name] = field.tagName === 'TEXTAREA' ? field.textContent : field.value;
+				out[name] = item.tagName === 'TEXTAREA' ? item.textContent : item.value;
 			}
 		}
 
@@ -260,49 +257,67 @@
 		return escape(value);
 	}
 
-	const escape = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+	const fieldList = (row, index) => `<dl class="ig-fields">${Object.entries(row.values).map(([column, value]) => `
+		<div class="ig-field" data-row="${index}" data-column="${escape(column)}">
+			<dt><span class="ig-name">${escape(column)}</span><span class="ig-kind">${escape(types.get(column) || '')}</span></dt>
+			<dd>${pretty(value, column)}</dd>
+		</div>`).join('')}</dl>`;
 
 	function paint() {
+		const payload = shown.length === 1 ? shown[0].values : shown.map(row => row.values);
+
 		if (view === 'json') {
-			ui.body.innerHTML = `<pre class="ig-json ig-json-all">${escape(JSON.stringify(values, null, 2))}</pre>`;
+			ui.body.innerHTML = `<pre class="ig-json ig-json-all">${escape(JSON.stringify(payload, null, 2))}</pre>`;
 			return;
 		}
 
-		ui.body.innerHTML = `<dl class="ig-fields">${Object.entries(values).map(([column, value]) => `
-			<div class="ig-field" data-column="${column}">
-				<dt><span class="ig-name">${column}</span><span class="ig-kind">${escape(types.get(column) || '')}</span></dt>
-				<dd>${pretty(value, column)}</dd>
-			</div>`).join('')}</dl>`;
+		if (shown.length === 1) {
+			ui.body.innerHTML = fieldList(shown[0], 0);
+			return;
+		}
+
+		ui.body.innerHTML = shown.map((row, index) => `
+			<details class="ig-row" open>
+				<summary><span class="ig-row-n">${index + 1}</span>${escape(row.key)}</summary>
+				${fieldList(row, index)}
+			</details>`).join('');
 	}
 
-	async function open(tr) {
-		row = tr;
+	function checkedRows() {
+		return [...grid.querySelectorAll('tbody input[name="check[]"]:checked')]
+			.map(box => box.closest('tr'))
+			.filter(tr => tr?.querySelector('td[id^="val["]'));
+	}
+
+	async function render(rows) {
 		const mine = ++token;
+		const visible = rows.slice(0, SHOW_LIMIT);
 
-		for (const other of grid.querySelectorAll('tbody tr.ig-peeking')) {
-			other.classList.remove('ig-peeking');
-		}
-		tr.classList.add('ig-peeking');
-
-		values = readGrid(tr);
-		view = 'fields';
-		ui.tabs.forEach(t => t.classList.toggle('ig-on', t.dataset.view === 'fields'));
-		ui.title.textContent = tableName;
-		ui.key.textContent = decodeURIComponent(
-			(tr.querySelector('input[name="check[]"]')?.value || '').replace(/^&/, '').replace(/where\[|\]/g, ''));
+		shown = visible.map(tr => ({ tr, key: keyOf(tr), values: readGrid(tr) }));
+		ui.title.textContent = rows.length > 1 ? `${tableName} · ${rows.length} rows` : tableName;
+		ui.key.textContent = rows.length === 1
+			? shown[0].key
+			: (rows.length > SHOW_LIMIT ? `showing the first ${SHOW_LIMIT}` : '');
 		paint();
 
 		drawer.hidden = false;
-		ui.loading.hidden = false;
+		ui.loading.hidden = visible.length > FETCH_LIMIT;
+
+		if (visible.length > FETCH_LIMIT) {
+			return;                      // too many to be worth a request each
+		}
 
 		try {
-			const full = await readFull(tr);
-			if (full && mine === token) {
-				values = { ...values, ...full };
-				paint();
+			const full = await Promise.all(visible.map(tr => readFull(tr).catch(() => null)));
+			if (mine !== token) {
+				return;
 			}
-		} catch {
-			// The grid values are still on screen; they are just truncated.
+			full.forEach((values, i) => {
+				if (values) {
+					shown[i].values = { ...shown[i].values, ...values };
+				}
+			});
+			paint();
 		} finally {
 			if (mine === token) {
 				ui.loading.hidden = true;
@@ -313,42 +328,54 @@
 	function close() {
 		token++;
 		drawer.hidden = true;
-		row?.classList.remove('ig-peeking');
-		row = null;
+		dismissed = checkedRows().map(keyOf).join('|');
+	}
+
+	/** Follows the grid's own selection: clicking a row already ticks its box. */
+	function sync() {
+		const rows = checkedRows();
+		const signature = rows.map(keyOf).join('|');
+
+		if (!rows.length) {
+			token++;
+			drawer.hidden = true;
+			dismissed = '';
+			return;
+		}
+		if (signature === dismissed) {
+			return;                      // closed by hand, and nothing has moved
+		}
+		dismissed = '';
+		render(rows);
 	}
 
 	function step(delta) {
-		if (!row) {
+		const rows = [...grid.querySelectorAll('tbody tr')].filter(tr => tr.querySelector('td[id^="val["]'));
+		const from = shown.length ? rows.indexOf(shown[shown.length - 1].tr) : -1;
+		const next = rows[from + delta];
+		if (!next) {
 			return;
 		}
-		const all = [...grid.querySelectorAll('tbody tr')];
-		const next = all[all.indexOf(row) + delta];
-		if (next) {
-			open(next);
-			next.scrollIntoView({ block: 'nearest' });
+
+		for (const box of grid.querySelectorAll('tbody input[name="check[]"]')) {
+			box.checked = false;
+			box.closest('tr')?.classList.remove('checked');
 		}
+		const box = next.querySelector('input[name="check[]"]');
+		if (box) {
+			box.checked = true;
+			next.classList.add('checked');
+		}
+		next.scrollIntoView({ block: 'nearest' });
+		sync();
 	}
 
-	// --- wiring --------------------------------------------------------------
+	/* --- wiring ------------------------------------------------------------- */
 
-	for (const tr of grid.querySelectorAll('tbody tr')) {
-		const cell = tr.querySelector('td');
-		if (!cell || !tr.querySelector('td[id^="val["]')) {
-			continue;
-		}
-		const button = document.createElement('button');
-		button.type = 'button';
-		button.className = 'ig-peek';
-		button.title = 'Inspect row';
-		button.textContent = '⌗';
-		button.onclick = event => {
-			// Adminer ticks a row's checkbox on any click inside it; inspecting is
-			// not selecting.
-			event.stopPropagation();
-			row === tr ? close() : open(tr);
-		};
-		cell.append(button);
-	}
+	// Adminer ticks boxes from its own click handler without firing `change`,
+	// so read the selection back once the click has been dealt with.
+	grid.addEventListener('click', () => setTimeout(sync, 0));
+	grid.addEventListener('change', () => setTimeout(sync, 0));
 
 	drawer.querySelector('.ig-drawer-close').onclick = close;
 
@@ -362,25 +389,23 @@
 
 	drawer.querySelector('.ig-drawer-foot').onclick = event => {
 		const act = event.target.dataset?.act;
-		if (!act || !row) {
+		if (!act || !shown.length) {
 			return;
 		}
 		if (act === 'copy') {
-			copy(JSON.stringify(values, null, 2), event.target);
+			copy(JSON.stringify(shown.length === 1 ? shown[0].values : shown.map(r => r.values), null, 2), event.target);
 		}
 		if (act === 'edit') {
-			row.querySelector('a.edit')?.click();
+			// One row has its own edit page; several go through Adminer's bulk
+			// edit, which already works on the ticked rows.
+			if (shown.length === 1) {
+				shown[0].tr.querySelector('a.edit')?.click();
+			} else {
+				form.querySelector('input[name="edit"]')?.click();
+			}
 		}
 		if (act === 'clone') {
-			// Adminer already knows how to clone a checked row; use its button
-			// rather than rebuilding the request.
-			const check = row.querySelector('input[name="check[]"]');
-			const clone = form.querySelector('input[name="clone"]');
-			if (check && clone) {
-				grid.querySelectorAll('input[name="check[]"]:checked').forEach(c => { c.checked = false; });
-				check.checked = true;
-				clone.click();
-			}
+			form.querySelector('input[name="clone"]')?.click();
 		}
 	};
 
@@ -388,7 +413,7 @@
 	ui.body.onclick = event => {
 		const field = event.target.closest('.ig-field');
 		if (field) {
-			copy(String(values[field.dataset.column] ?? ''), null);
+			copy(String(shown[Number(field.dataset.row)]?.values[field.dataset.column] ?? ''), null);
 			field.classList.add('ig-copied');
 			setTimeout(() => field.classList.remove('ig-copied'), 700);
 		}

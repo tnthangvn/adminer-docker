@@ -1,17 +1,6 @@
 /* Instrument — row inspector and typed search
    Loaded only on select pages. Uses the palette tokens; adds no colours. */
 
-/* --- the peek button in each row ---------------------------------------- */
-
-.ig-peek {
-  background: none; border: 0; cursor: pointer;
-  color: var(--faint); font: 12px/1 var(--mono);
-  padding: 1px 4px; margin-left: 2px; border-radius: 3px;
-}
-.ig-peek:hover { color: var(--amber); background: var(--raise); }
-tbody tr.ig-peeking > :first-child { box-shadow: inset 2px 0 0 var(--amber); }
-tbody tr.ig-peeking td, tbody tr.ig-peeking th { background: var(--sel); }
-
 /* --- typed search fields -------------------------------------------------- */
 
 #fieldset-search input.ig-typed {
@@ -22,14 +11,8 @@ tbody tr.ig-peeking td, tbody tr.ig-peeking th { background: var(--sel); }
 #fieldset-search input[type="time"] {
   font: 12px/1.4 var(--mono);
 }
-#fieldset-search ::-webkit-calendar-picker-indicator {
-  filter: invert(.55) sepia(1) saturate(4) hue-rotate(357deg);
-  opacity: .7; cursor: pointer;
-}
-#fieldset-search input:hover::-webkit-calendar-picker-indicator { opacity: 1; }
-#fieldset-search input[type="date"],
-#fieldset-search input[type="datetime-local"],
-#fieldset-search input[type="time"] { cursor: pointer; }
+#fieldset-search input[data-ig-date] { cursor: pointer; font: 12px/1.4 var(--mono); }
+#fieldset-search input[data-ig-date]::placeholder { color: var(--faint); }
 
 /* --- the drawer ----------------------------------------------------------- */
 
@@ -110,6 +93,27 @@ tbody tr.ig-peeking td, tbody tr.ig-peeking th { background: var(--sel); }
   white-space: pre; overflow-x: auto; scrollbar-width: thin;
 }
 .ig-json-all { border: 0; border-radius: 0; background: none; padding: 14px 16px; color: var(--fg); }
+
+/* --- several rows at once ------------------------------------------------- */
+
+.ig-row { border-bottom: 1px solid var(--edge); }
+.ig-row > summary {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px;
+  font: 11px/1.4 var(--mono); color: var(--amber);
+  cursor: pointer; list-style: none;
+  background: color-mix(in srgb, var(--ink) 40%, var(--panel));
+  word-break: break-all;
+}
+.ig-row > summary::-webkit-details-marker { display: none; }
+.ig-row > summary:hover { color: var(--fg); }
+.ig-row-n {
+  flex: 0 0 auto;
+  min-width: 16px; text-align: center;
+  border: 1px solid var(--edge); border-radius: 2px;
+  color: var(--muted); font-size: 10px;
+}
+.ig-row .ig-field { padding-left: 22px; }
 
 /* --- footer --------------------------------------------------------------- */
 

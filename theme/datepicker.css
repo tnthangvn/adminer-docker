@@ -1,0 +1,75 @@
+/* Instrument — date picker for the search form */
+
+.ig-cal {
+  position: fixed; z-index: 60;
+  display: flex;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  box-shadow: 0 20px 48px -22px var(--shadow);
+  overflow: hidden;
+}
+.ig-cal[hidden] { display: none; }
+
+/* --- shortcuts ------------------------------------------------------------ */
+
+.ig-cal-shortcuts {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px;
+  border-right: 1px solid var(--edge);
+  background: color-mix(in srgb, var(--ink) 45%, var(--panel));
+}
+.ig-cal-shortcuts button {
+  background: none; border: 1px solid transparent; border-radius: 3px;
+  color: var(--muted); font: 11px/1.5 var(--ui);
+  padding: 4px 10px; text-align: left; white-space: nowrap; cursor: pointer;
+}
+.ig-cal-shortcuts button:hover { color: var(--amber); border-color: var(--edge); background: var(--raise); }
+
+/* --- calendar ------------------------------------------------------------- */
+
+.ig-cal-main { padding: 8px; }
+
+.ig-cal-main header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 2px 4px 8px;
+}
+.ig-cal-month { font: 500 12px/1.4 var(--mono); color: var(--fg); }
+.ig-cal-step {
+  background: none; border: 0; cursor: pointer;
+  color: var(--muted); font: 14px/1 var(--ui); padding: 2px 8px; border-radius: 3px;
+}
+.ig-cal-step:hover { color: var(--amber); background: var(--raise); }
+
+.ig-cal-week, .ig-cal-grid {
+  display: grid; grid-template-columns: repeat(7, 30px); gap: 2px;
+}
+.ig-cal-week span {
+  font: 10px/1.6 var(--mono); color: var(--faint); text-align: center;
+}
+.ig-cal-day {
+  background: none; border: 1px solid transparent; border-radius: 3px;
+  color: var(--fg); font: 11px/1 var(--mono);
+  height: 26px; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.ig-cal-day:hover { border-color: var(--amber); color: var(--amber); }
+.ig-cal-outside { color: var(--faint); }
+.ig-cal-today   { border-color: var(--edge); }
+.ig-cal-chosen  { background: var(--amber); border-color: var(--amber); color: var(--on-amber); }
+
+.ig-cal-main footer {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--edge);
+}
+.ig-cal-time { font: 10px/1.4 var(--ui); color: var(--muted); }
+.ig-cal-time input {
+  width: 11ex; margin-left: 6px;
+  font: 11px/1.4 var(--mono);
+  padding: 3px 6px;
+}
+.ig-cal-clear {
+  background: none; border: 0; cursor: pointer;
+  color: var(--muted); font: 11px/1.4 var(--ui); padding: 3px 6px; border-radius: 3px;
+}
+.ig-cal-clear:hover { color: var(--bad); }
