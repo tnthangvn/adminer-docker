@@ -104,14 +104,7 @@ h3 {
     box-shadow: 1px 0 0 var(--hi-soft), 6px 0 24px -14px var(--sink);
     overflow: hidden;
   }
-  #menu > *                  { order: 6; }
-  #menu > h1                 { order: 1; }
-  #menu form:has(#dbs)       { order: 2; }
-  #menu .links               { order: 3; }
-  #menu p:has(#filter-field) { order: 4; }   /* the filter sits on its list */
-  #menu #tables              { order: 5; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-  #menu form:has(#lang)      { order: 9; margin-top: auto; border-top: 1px solid var(--edge);
-                               background: color-mix(in srgb, var(--ink) 40%, var(--panel)); }
+  #menu form:has(#lang) { margin-top: auto; }
 
   #lang       { position: static; padding: 10px 16px; }
   #content    { margin: 40px 0 0 19em; padding: 0 24px 64px; }
@@ -121,6 +114,19 @@ h3 {
   .logout     { position: fixed; top: 0; right: 0; height: 32px; line-height: 32px;
                 padding: 0 14px 0 0; margin: 0; background: none; box-shadow: none; z-index: 3; }
 }
+
+/* The list of tables is the reason the sidebar exists, so it takes the free
+   height and scrolls on its own — in both layouts. Everything else is chrome
+   and gets out of its way. */
+#menu > *                  { order: 6; }
+#menu > h1                 { order: 1; }
+#menu form:has(#dbs)       { order: 2; }
+#menu .links               { order: 3; }
+#menu p:has(#filter-field) { order: 4; }
+#menu #tables              { order: 5; flex: 1 1 auto; min-height: 0;
+                             overflow-y: auto; overflow-x: hidden; }
+#menu form:has(#lang)      { order: 9; border-top: 1px solid var(--edge);
+                             background: color-mix(in srgb, var(--ink) 40%, var(--panel)); }
 
 #menu p, #logins, #tables { border-bottom: 1px solid var(--edge); padding: 10px 16px; }
 #menu #tables             { border-bottom: 0; padding: 6px 8px 24px; }
@@ -533,8 +539,17 @@ body:has(#username) #lang select        { width: auto; }
 }
 
 @media all and (max-width: 800px) {
-  #menu { background: var(--panel); border: 1px solid var(--edge);
-          box-shadow: var(--lift-2); }
+  /* Adminer drops the sidebar into an absolutely positioned panel with no
+     height of its own, so a long table list simply runs off the bottom of the
+     screen. Bound it and let the list scroll inside. */
+  .js #foot { max-height: calc(100vh - 2.5em); }
+  #menu {
+    display: flex; flex-direction: column;
+    max-height: calc(100vh - 3em);
+    overflow: hidden;
+    background: var(--panel); border: 1px solid var(--edge);
+    box-shadow: var(--lift-2);
+  }
   #breadcrumb { padding: 0 12px 0 48px; }
   thead th, thead td { top: 0; }
   /* the plinth would collide with screen edges on a phone; lay the card flat */

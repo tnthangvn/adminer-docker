@@ -17,7 +17,9 @@
 /* --- the drawer ----------------------------------------------------------- */
 
 .ig-drawer {
-  position: fixed; inset: 0 0 0 auto;
+  /* Longhands, not `inset: 0 0 0 auto` — the shorthand with an `auto` corner
+     has been read differently by different engines. */
+  position: fixed; top: 0; right: 0; bottom: 0; left: auto;
   width: min(460px, 100vw);
   display: flex; flex-direction: column;
   background: var(--panel);
