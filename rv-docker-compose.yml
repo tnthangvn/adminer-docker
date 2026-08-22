@@ -1,0 +1,302 @@
+services:
+  adminer:
+    build: .
+    image: adminer-instrument:5.4.1
+    container_name: adminer
+    restart: always
+    ports:
+      - "${ADMINER_PORT:-9006}:8080"
+    environment:
+      # dark | light | auto (follows the OS) | none
+      ADMINER_THEME: dark
+      # Prefills the login form. The password is never prefilled.
+      ADMINER_DEFAULT_DRIVER: pgsql
+      ADMINER_DEFAULT_SERVER: host.docker.internal:5432
+      ADMINER_DEFAULT_USERNAME: postgres
+      ADMINER_DEFAULT_DB: ""
+      # Concurrency for the built-in server. 1 disables workers.
+      PHP_CLI_SERVER_WORKERS: 4
+    volumes:
+      # Live theme editing: a save shows up on the next refresh. Drop this line
+      # to use the stylesheets baked into the image.
+      - ./theme:/app/theme:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Nothing is written to the image at runtime, so it can run locked down.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  # Real values live in `.env` next to this file (gitignored); `.env.example`
+  # lists the keys. Every value here also carries a `:-default` so a fresh clone
+  # starts with zero setup.
+  #
+  # What that trade costs: a missing `.env` no longer fails — it starts a stack on
+  # credentials that are readable in this file. That is fine for a laptop and NOT
+  # fine anywhere reachable, so the defaults are all obvious placeholders
+  # (`postgres`, `redis`, `admin`, `*-change-me`) rather than plausible-looking
+  # secrets. If you ever see one of those in a running environment, `.env` was not
+  # loaded — treat it as unconfigured, not as working.
+  #
+  # Note that `rong-viet-postgres` publishes 5550 on 0.0.0.0, so on a machine
+  # without `.env` AND without an existing `rongviet_data` volume, that default
+  # password is what guards a reachable database. Bind it to "127.0.0.1:5550:5432"
+  # if that machine is not trusted.
+  #
+  # The top-level `version:` key was removed — Compose v2 ignores it and warns.
+  rong-viet-postgres:
+    image: postgres:17.5
+    container_name: rong-viet-postgres
+    restart: always
+    environment:
+      # User and DB name are NOT secrets — they were inline in this file before
+      # the .env move and are still in git history — so they carry a default and
+      # a fresh clone only has to fill in the password.
+      #
+      # These three are read ONLY when Postgres initialises an EMPTY data
+      # directory. `rongviet_data` is already initialised, so editing them now
+      # does not rename anything inside the DB: it only changes what this
+      # container tries to authenticate AS, and a mismatch shows up as
+      # "password authentication failed", not as a config error. To actually
+      # change them you must drop the volume and re-seed.
+      POSTGRES_USER: ${POSTGRES_USER:-rongviet_user}
+      POSTGRES_DB: ${POSTGRES_DB:-rongviet_db}
+      # `postgres` is a placeholder, not a password. It only ever takes effect on
+      # a machine with no `.env` AND no existing volume — see the header note on
+      # 5550 being published on 0.0.0.0.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5550:5432"
+    volumes:
+      - rongviet_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chatwoot_net
+
+  rong-viet-redis:
+    image: redis:7.4-alpine
+    container_name: rong-viet-redis
+    restart: always
+    # Other containers reach this as `rong-viet-redis:6379` over chatwoot_net,
+    # regardless of the host mapping below.
+    expose:
+      - "6379"
+    # `--requirepass` even on an unpublished port: any other container on
+    # chatwoot_net (chatwoot, adminer) can reach it otherwise.
+    # `--appendonly yes` so data survives a restart; without it Redis only
+    # snapshots on the default RDB schedule and can drop the last minutes.
+    #
+    # REDIS_PASSWORD appears THREE times in this file — here, in the healthcheck
+    # below, and in redis-commander's REDIS_HOSTS. The default must be identical
+    # in all three or the mismatch shows up as a failing healthcheck / an empty
+    # commander UI rather than as a config error.
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:-7e69cb0a22bd944106d23c363ad3b43aecf58058c6b9d606}
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - noeviction
+    # Published on 0.0.0.0, i.e. every interface — on this host that includes
+    # 192.168.1.28, so anything on the LAN can reach it, not just localhost.
+    # 6379 is also among the most-scanned ports on the internet; an unauthed or
+    # weakly-authed Redis is a standard target because CONFIG SET turns it into
+    # arbitrary file write. The only thing standing there is REDIS_PASSWORD,
+    # which falls back to `redis` when `.env` is absent.
+    #
+    # Change to "127.0.0.1:${REDIS_PORT:-6379}:6379" to keep host access while
+    # dropping LAN exposure — the /etc/hosts entry pointing `redis` at 127.0.0.1
+    # keeps working either way, since it resolves to loopback already.
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-7e69cb0a22bd944106d23c363ad3b43aecf58058c6b9d606}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - chatwoot_net
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: rong-viet-commander
+    restart: always
+    # The image publishes amd64 only; without this, `docker compose up` fails on
+    # an arm64 host with "no matching manifest".
+    platform: linux/amd64
+    environment:
+      # Format is `label:host:port:dbIndex:password`. The host is the SERVICE
+      # name on chatwoot_net — `rong-viet-redis`, not `redis`. A wrong host here
+      # does not fail at startup: the UI loads and shows an empty/erroring
+      # connection, which reads like "Redis is broken" rather than "typo".
+      # Whole value is overridable from `.env` as REDIS_HOSTS; leaving it unset
+      # (the normal case) builds it from REDIS_PASSWORD so the password lives in
+      # exactly one variable. Setting REDIS_HOSTS in `.env` opts out of that and
+      # pins a second copy of the password — they then drift independently, and
+      # the symptom is an empty commander UI, not an error. Only set it to point
+      # at a different Redis, or to list more than one.
+      #
+      # `6379` here is the CONTAINER port and is deliberately hardcoded: this
+      # connection crosses chatwoot_net and never touches the host mapping.
+      # REDIS_PORT moves only the HOST side of rong-viet-redis's `ports:`, so
+      # wiring it in here would point commander at a port nothing listens on.
+      - REDIS_HOSTS=${REDIS_HOSTS:-local:rong-viet-redis:6379:0:${REDIS_PASSWORD:-7e69cb0a22bd944106d23c363ad3b43aecf58058c6b9d606}}
+      # Basic-auth on the WEB UI. Deliberately NOT reused from REDIS_PASSWORD:
+      # this credential is typed into a browser and travels over plain HTTP on
+      # the LAN, so leaking it must not also hand over the Redis instance.
+      # admin/admin is survivable only because the port below is 127.0.0.1-only.
+      - HTTP_USER=${REDIS_COMMANDER_USER:-admin}
+      - HTTP_PASSWORD=${REDIS_COMMANDER_PASSWORD:-admin}
+    ports:
+      # Bound to 127.0.0.1 ON PURPOSE. This UI can read and DELETE every key
+      # with no confirmation; "0.0.0.0:8082" would put that one firewall rule
+      # away from the internet, behind only basic auth. Reach it over an SSH
+      # tunnel: `ssh -L 8082:127.0.0.1:8082 <host>`, then open localhost:8082.
+      - "127.0.0.1:${REDIS_COMMANDER_PORT:-8082}:8081"
+    networks:
+      - chatwoot_net
+    depends_on:
+      rong-viet-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8081 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  rongviet-centrifugo:
+    container_name: rongviet-centrifugo
+    image: centrifugo/centrifugo:v6
+    restart: always
+    command: centrifugo
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    # NO HOST PORT (2026-07-28). Previously `ports: "8004:8000"`.
+    #
+    # It was not internet-reachable then either — but only because a GCP
+    # firewall rule blocked it. Nothing in this file did, and that rule is one
+    # console edit away from being undone. `expose` removes the question: there
+    # is no host binding to un-block.
+    #
+    # The browser still reaches it, through the API rather than directly:
+    # wss://api.dev.rongvietgroup.com.vn/centrifugo/* is proxied to
+    # rongviet-centrifugo:8000 over this network by
+    # `be/src/services/centrifugo-ws-proxy.service.ts`. That path was chosen
+    # over publishing a port and adding a load-balancer route because the API
+    # is already published and already behind the LB — no new LB route, no DNS
+    # record, no firewall change.
+    #
+    # `CENTRIFUGO_CLIENT_ALLOWED_ORIGINS` below stays as the FRONTEND origin:
+    # the browser sends that Origin even though the socket is opened against
+    # the API host, and the proxy forwards it unchanged.
+    expose:
+      - "8000"
+    environment:
+      # Centrifugo v6 renamed almost every env var. The previous block used v5
+      # names and Centrifugo logged `unknown var in environment` for SIX of the
+      # eight — it ran on stock defaults with no auth and no proxy. Names below
+      # are taken verbatim from `centrifugo defaultenv` inside this exact image
+      # (v6.9.1); do not hand-edit them without re-running that command.
+      #
+      #   v5 (ignored)                       -> v6 (correct)
+      #   CENTRIFUGO_TOKEN_HMAC_SECRET_KEY   -> CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY
+      #   CENTRIFUGO_API_KEY                 -> CENTRIFUGO_HTTP_API_KEY
+      #   CENTRIFUGO_ADMIN                   -> CENTRIFUGO_ADMIN_ENABLED
+      #   CENTRIFUGO_ALLOWED_ORIGINS         -> CENTRIFUGO_CLIENT_ALLOWED_ORIGINS
+      #   CENTRIFUGO_PRESENCE                -> CENTRIFUGO_CHANNEL_WITHOUT_NAMESPACE_PRESENCE
+      #   CENTRIFUGO_ALLOW_SUBSCRIBE_FOR_CLIENT
+      #                                      -> CENTRIFUGO_CHANNEL_WITHOUT_NAMESPACE_ALLOW_SUBSCRIBE_FOR_CLIENT
+      # These two MUST match the backend's own env: the backend signs client
+      # tokens with the HMAC key and calls /api/publish with the API key. Change
+      # one side only and push breaks with a signature/401 error, not a clear
+      # message. See rongviet-backend `.env`.
+      #
+      # The defaults are placeholders and WILL NOT match the backend. Unlike the
+      # others on this page, a missing `.env` here fails at RUNTIME, not at
+      # startup: Centrifugo boots fine, then rejects every client token and every
+      # publish. Symptom is "realtime silently stopped working", so check these
+      # two first when that happens.
+      #
+      # Keeping the real keys out of the file is deliberate — the HMAC key signs
+      # the `channels` claim, so anyone holding it can mint a token for any
+      # user's KYC or payment channel.
+      CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY: ${CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY:-dev-hmac-change-me}
+      CENTRIFUGO_HTTP_API_KEY: ${CENTRIFUGO_HTTP_API_KEY:-dev-api-key-change-me}
+      CENTRIFUGO_ADMIN_ENABLED: "false"
+      # Browser origin only — "*" would let any site open an authenticated
+      # socket. The FE is the sole browser client.
+      CENTRIFUGO_CLIENT_ALLOWED_ORIGINS: "*"
+      # REQUIRED for `blockchain:admin` to exist at all (added 2026-07-28).
+      #
+      # CENTRIFUGO_CHANNEL_NAMESPACE_BOUNDARY defaults to ":", so the backend's
+      # channel `blockchain:admin` is parsed as namespace `blockchain` + name
+      # `admin`. This list was empty, so that namespace did not exist and
+      # Centrifugo rejected BOTH ends with `{"code":102,"unknown channel"}`:
+      # the browser's connect (token `channels` claim) and the worker's
+      # /api/publish. Verified on dev — publishing to `probe` (no namespace)
+      # returned `{"result":{}}`, to `blockchain:admin` returned 102.
+      #
+      # It was invisible because Centrifugo answers 200 with the error in the
+      # BODY, and centrifugo.service.ts only checks `response.ok`. That is
+      # worth fixing separately; it is not what breaks push.
+      #
+      # Every `allow_*` stays at its default false on purpose: access is
+      # granted server-side through the signed token's `channels` claim, which
+      # bypasses allow_subscribe_for_client. A client still cannot name its own
+      # channel. Add future namespaces (kyc, payment) as further objects here.
+      CENTRIFUGO_CHANNEL_NAMESPACES: '[{"name":"blockchain"}]'
+      CENTRIFUGO_CHANNEL_WITHOUT_NAMESPACE_PRESENCE: "false"
+      # Clients must NOT be able to subscribe to arbitrary channels on their
+      # own: KYC and payment channels are per-user and carry personal data.
+      # Channel access is granted server-side, via the `channels` list the
+      # connect proxy below returns.
+      CENTRIFUGO_CHANNEL_WITHOUT_NAMESPACE_ALLOW_SUBSCRIBE_FOR_CLIENT: "false"
+      # Auth model: CONNECTION JWT, not connect-proxy.
+      #
+      # The old block set PROXY_CONNECT_ENDPOINT but never PROXY_CONNECT_ENABLED
+      # (defaults false), so Centrifugo never called the backend — and the
+      # endpoint it named returns 404 anyway. Rather than build that endpoint,
+      # this uses Centrifugo's built-in JWT verification:
+      #
+      #   1. FE asks the backend for a short-lived Centrifugo token.
+      #   2. Backend signs it with CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY,
+      #      putting the user id in `sub` and the channels that user may read
+      #      in the `channels` claim (server-side subscriptions).
+      #   3. Centrifugo verifies the signature locally — no round-trip per
+      #      connect, and no extra endpoint to keep alive.
+      #
+      # This pairs with ALLOW_SUBSCRIBE_FOR_CLIENT=false above: the client
+      # cannot name its own channels, it only receives the ones the signed
+      # token grants.
+      #
+      # Leaving proxy-connect ENABLED while its endpoint 404s would reject every
+      # connection, so it stays off unless that endpoint is actually built.
+      CENTRIFUGO_CLIENT_PROXY_CONNECT_ENABLED: "false"
+    networks:
+      - chatwoot_net
+
+volumes:
+  rongviet_data:
+  redis_data:
+
+networks:
+  chatwoot_net:
+    driver: bridge
