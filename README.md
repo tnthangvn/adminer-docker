@@ -8,7 +8,7 @@ plugin set turned on by default, and a theme built for reading dense tables.
 | unpacked rootfs     | 116 MB           | **35 MB**            |
 | base                | `php:8.4-cli-alpine` (docker-php toolchain) | `alpine:3.22` + `php84` from apk |
 | concurrency         | 1 request at a time | 4 workers (`PHP_CLI_SERVER_WORKERS`) |
-| drivers             | MySQL, PgSQL (PDO), SQLite, dblib, ODBC | MySQL, PgSQL (**native + PDO**), SQLite |
+| drivers             | MySQL, PgSQL (PDO), SQLite, dblib, ODBC | MySQL, PgSQL (**native + PDO**), SQLite, **MongoDB** |
 | plugins             | none, unless you set `ADMINER_PLUGINS` | 16 on by default |
 | runtime writes      | symlinks + generated plugin files | none — runs `read_only: true` |
 | `X-Powered-By`      | leaks the PHP version | off |
@@ -123,6 +123,17 @@ datetime picker for `timestamp` (the `T` is rewritten to a space on submit), a
 number spinner for numerics, `true`/`false` for booleans, and the allowed labels
 for an enum. The operator also stops defaulting to `LIKE %%` on types where it
 makes no sense — until you pick one yourself, after which it is left alone.
+
+## MongoDB
+
+Adminer ships a MongoDB driver but leaves it switched off, and the official
+image has no `mongodb` extension to run it with. This one has both, so
+**MongoDB (alpha)** is in the System list out of the box: collections show up
+as tables and documents as rows.
+
+`ADMINER_DRIVERS` picks the set — the others in `plugins/drivers/` are
+`clickhouse`, `elastic`, `firebird`, `imap` and `simpledb`, though each needs
+its own PHP extension to actually connect.
 
 ## PostgreSQL enums
 

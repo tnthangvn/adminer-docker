@@ -79,8 +79,32 @@ namespace Instrument {
         return $instances;
     }
 
+    /**
+     * Database drivers to load, beyond the four compiled into Adminer.
+     * These are plain includes: a driver file registers itself with
+     * add_driver() and declares its classes only for the driver in use, so
+     * unlike a plugin there is nothing to instantiate.
+     */
+    const DEFAULT_DRIVERS = 'mongo';
+
+    function drivers(): void
+    {
+        $wanted = preg_split('~[\s,]+~', env('ADMINER_DRIVERS', DEFAULT_DRIVERS), -1, PREG_SPLIT_NO_EMPTY);
+
+        foreach ($wanted as $name) {
+            $file = __DIR__ . "/plugins/drivers/" . basename($name) . '.php';
+            if (is_readable($file)) {
+                require_once $file;
+            } else {
+                error_log("adminer: no such driver '$name'");
+            }
+        }
+    }
+
     function build(): \Adminer\Plugins
     {
+        drivers();
+
         /**
          * Serves the Instrument theme, honouring ADMINER_THEME.
          *

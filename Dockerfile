@@ -36,7 +36,7 @@ RUN apk add --no-cache \
         php84-opcache \
         php84-openssl \
         php84-session \
-        # drivers: PostgreSQL (native + PDO), MySQL/MariaDB, SQLite
+        # drivers: PostgreSQL (native + PDO), MySQL/MariaDB, SQLite, MongoDB
         php84-pdo \
         php84-pgsql \
         php84-pdo_pgsql \
@@ -45,6 +45,7 @@ RUN apk add --no-cache \
         php84-pdo_mysql \
         php84-sqlite3 \
         php84-pdo_sqlite \
+        php84-pecl-mongodb \
         # export formats
         php84-bz2 \
         php84-zip \
