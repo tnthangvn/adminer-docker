@@ -86,6 +86,8 @@
 			<div class="ig-cal-grid"></div>
 			<footer>
 				<label class="ig-cal-time" hidden>time <input type="text" placeholder="00:00:00" spellcheck="false"></label>
+				<span class="ig-cal-range" hidden></span>
+				<button type="button" class="ig-cal-apply" hidden>Apply</button>
 				<button type="button" class="ig-cal-clear">clear</button>
 			</footer>
 		</div>`;
@@ -93,6 +95,8 @@
 
 	const ui = {
 		shortcuts: cal.querySelector('.ig-cal-shortcuts'),
+		range: cal.querySelector('.ig-cal-range'),
+		apply: cal.querySelector('.ig-cal-apply'),
 		month: cal.querySelector('.ig-cal-month'),
 		grid: cal.querySelector('.ig-cal-grid'),
 		time: cal.querySelector('.ig-cal-time'),
@@ -101,14 +105,27 @@
 
 	let field = null;      // the input being edited
 	let cursor = today();  // month on show
+	let from = null;       // range start, once picked
+	let to = null;         // range end, once picked
+	let hover = null;      // the day under the pointer while a range is open
+
+	/** A range needs two conditions, so it only makes sense in the search form. */
+	const ranged = () => !!search?.contains(field);
 
 	function open(input) {
 		field = input;
 		cursor = parse(input.value) || today();
 
+		from = parse(input.value);
+		to = null;
+		hover = null;
+
 		const withTime = input.dataset.igDate === 'datetime';
-		ui.shortcuts.hidden = !search?.contains(input);   // a range needs two conditions
+		ui.shortcuts.hidden = !ranged();
+		ui.range.hidden = !ranged();
+		ui.apply.hidden = !ranged();
 		ui.time.hidden = !withTime;
+		label();
 		ui.timeInput.value = withTime ? (timeOf(input.value) || '') : '';
 
 		cal.hidden = false;
@@ -150,12 +167,50 @@
 			if (+day === +now) {
 				classes.push('ig-cal-today');
 			}
-			if (chosen && +day === +chosen) {
+			if (chosen && +day === +chosen && !ranged()) {
 				classes.push('ig-cal-chosen');
+			}
+			if (ranged()) {
+				const close = to || hover;
+				if (from && +day === +from) {
+					classes.push('ig-cal-chosen', 'ig-cal-from');
+				}
+				if (close && +day === +close && from && +close >= +from) {
+					classes.push('ig-cal-chosen', 'ig-cal-to');
+				}
+				if (from && close && +day > +from && +day < +close) {
+					classes.push('ig-cal-between');
+				}
 			}
 			cells.push(`<button type="button" class="${classes.join(' ')}" data-date="${iso(day)}">${day.getDate()}</button>`);
 		}
 		ui.grid.innerHTML = cells.join('');
+	}
+
+	function label() {
+		if (!ranged()) {
+			return;
+		}
+		ui.range.textContent = from
+			? (to ? `${iso(from)} → ${iso(to)}` : `${iso(from)} → …`)
+			: 'pick a day, or two';
+		ui.apply.disabled = !from;
+	}
+
+	/**
+	 * First click opens a range, second closes it. Clicking before the start
+	 * means you changed your mind about where it begins.
+	 */
+	function pickInRange(day) {
+		if (!from || to || +day < +from) {
+			from = day;
+			to = null;
+		} else {
+			to = day;
+		}
+		hover = null;
+		label();
+		draw();
 	}
 
 	/* --- writing back ------------------------------------------------------- */
@@ -243,7 +298,15 @@
 			return;
 		}
 		if (button.dataset.date) {
-			pickDay(button.dataset.date);
+			const day = parse(button.dataset.date);
+			ranged() ? pickInRange(day) : pickDay(button.dataset.date);
+		} else if (button.classList.contains('ig-cal-apply')) {
+			if (from && to) {
+				applyRange(from, new Date(to.getFullYear(), to.getMonth(), to.getDate() + 1));
+			} else if (from) {
+				pickDay(iso(from));       // one day is not a range; leave the operator alone
+				close();
+			}
 		} else if (button.dataset.step) {
 			cursor = new Date(cursor.getFullYear(), cursor.getMonth() + Number(button.dataset.step), 1);
 			draw();
@@ -251,8 +314,18 @@
 			shortcut(button.dataset.range);
 		} else if (button.classList.contains('ig-cal-clear')) {
 			field.value = '';
+			from = to = hover = null;
 			fire(field);
 			close();
+		}
+	});
+
+	ui.grid.addEventListener('mouseover', event => {
+		const day = event.target.closest('.ig-cal-day');
+		if (ranged() && from && !to && day) {
+			hover = parse(day.dataset.date);
+			label();
+			draw();
 		}
 	});
 

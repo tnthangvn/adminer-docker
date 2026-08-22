@@ -58,9 +58,17 @@
 .ig-cal-outside { color: var(--faint); }
 .ig-cal-today   { border-color: var(--edge); }
 .ig-cal-chosen  { background: var(--amber); border-color: var(--amber); color: var(--on-amber); }
+.ig-cal-chosen:hover { color: var(--on-amber); }
+
+/* The span between the two ends: tinted, and squared off where it meets them
+   so the run reads as one bar rather than a row of separate cells. */
+.ig-cal-between { background: var(--sel); border-radius: 0; }
+.ig-cal-from    { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.ig-cal-to      { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.ig-cal-from.ig-cal-to { border-radius: 3px; }
 
 .ig-cal-main footer {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--edge);
 }
 .ig-cal-time { font: 10px/1.4 var(--ui); color: var(--muted); }
@@ -69,6 +77,19 @@
   font: 11px/1.4 var(--mono);
   padding: 3px 6px;
 }
+.ig-cal-range {
+  font: 11px/1.4 var(--mono); color: var(--muted);
+  margin-right: auto;
+}
+.ig-cal-apply {
+  background: var(--amber); border: 1px solid var(--amber); border-radius: 3px;
+  color: var(--on-amber); font: 600 11px/1.4 var(--ui);
+  padding: 4px 12px; cursor: pointer;
+}
+.ig-cal-apply:hover:not(:disabled) { background: var(--amber-hi); border-color: var(--amber-hi); }
+.ig-cal-apply:disabled { opacity: .45; cursor: default; }
+.ig-cal-range[hidden], .ig-cal-apply[hidden] { display: none; }
+
 .ig-cal-clear {
   background: none; border: 0; cursor: pointer;
   color: var(--muted); font: 11px/1.4 var(--ui); padding: 3px 6px; border-radius: 3px;
