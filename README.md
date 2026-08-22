@@ -86,9 +86,18 @@ What that changes in practice:
 - **SQL highlighting** reuses the data spectrum, so a query and the rows it
   returns speak one colour language.
 
-Editing: `theme/_core.css` holds the structure, `theme/_tokens-dark.css` and
-`theme/_tokens-light.css` hold the colours. The Dockerfile concatenates one
-token file with the core into each variant, so the two can never drift apart.
+### Editing it
+
+`theme/core.css` holds the structure, `theme/tokens-dark.css` and
+`theme/tokens-light.css` hold the colours. They ship as separate stylesheets on
+purpose — mount the directory and a save is live on the next refresh, with no
+rebuild and no restart, because each file's cache key is its own mtime:
+
+```bash
+docker run -d -p 9006:8080 -v "$PWD/theme:/app/theme:ro" adminer-instrument
+```
+
+Rebuild only when you want the changes baked into the image.
 
 ## Layout
 
@@ -98,8 +107,8 @@ php.ini                 runtime settings (limits, opcache, cookie flags)
 src/index.php           bootstrap: plugin loading, theme, login prefill
 src/adminer.php         upstream 5.4.1, copied at build time
 src/plugins/            upstream plugins, all available via ADMINER_PLUGINS
-theme/_core.css         structure layer, colour-free
-theme/_tokens-*.css     the two palettes
+theme/core.css          structure layer, colour-free
+theme/tokens-*.css      the two palettes
 ```
 
 `src/index.php` is the only application code here. It runs before `adminer.php`,

@@ -16,6 +16,10 @@ services:
       ADMINER_DEFAULT_DB: ""
       # Concurrency for the built-in server. 1 disables workers.
       PHP_CLI_SERVER_WORKERS: 4
+    volumes:
+      # Live theme editing: a save shows up on the next refresh. Drop this line
+      # to use the stylesheets baked into the image.
+      - ./theme:/app/theme:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     # Nothing is written to the image at runtime, so it can run locked down.
