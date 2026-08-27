@@ -67,15 +67,55 @@
 .ig-cal-to      { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .ig-cal-from.ig-cal-to { border-radius: 3px; }
 
-.ig-cal-main footer {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--edge);
+/* --- body: calendar beside the time wheels -------------------------------- */
+
+.ig-cal-body { display: flex; align-items: stretch; gap: 8px; }
+.ig-cal-time[hidden] { display: none; }
+.ig-cal-time {
+  display: flex; align-items: center;
+  padding-left: 8px; border-left: 1px solid var(--edge);
 }
-.ig-cal-time { font: 10px/1.4 var(--ui); color: var(--muted); }
-.ig-cal-time input {
-  width: 11ex; margin-left: 6px;
-  font: 11px/1.4 var(--mono);
-  padding: 3px 6px;
+
+/* iOS-style wheels: three snap-scrollers under one centre band. The band and
+   the top/bottom fade are the whole illusion — the selected value is simply
+   whatever tick the column has snapped to the middle. */
+.ig-cal-wheels {
+  --tick: 24px;
+  position: relative; display: flex; gap: 2px;
+  height: calc(var(--tick) * 5);
+  background: var(--ink); border: 1px solid var(--edge); border-radius: 4px;
+  padding: 0 2px;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 28%, #000 72%, transparent);
+          mask-image: linear-gradient(180deg, transparent, #000 28%, #000 72%, transparent);
+}
+/* the fixed selection band across the middle row */
+.ig-cal-wheels::after {
+  content: ""; position: absolute; left: 3px; right: 3px;
+  top: calc(50% - var(--tick) / 2); height: var(--tick);
+  border-top: 1px solid var(--edge); border-bottom: 1px solid var(--edge);
+  pointer-events: none;
+}
+.ig-cal-wheel {
+  height: 100%; overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.ig-cal-wheel::-webkit-scrollbar { display: none; }
+.ig-cal-pad { height: calc(var(--tick) * 2); }   /* lets first/last tick centre */
+.ig-cal-tick {
+  height: var(--tick); scroll-snap-align: center;
+  display: flex; align-items: center; justify-content: center;
+  min-width: 3ex; padding: 0 3px;
+  font: 12px/1 var(--mono); color: var(--muted); cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition: color var(--ease);
+}
+.ig-cal-tick:hover { color: var(--fg); }
+.ig-cal-tick.is-active { color: var(--amber); }
+
+.ig-cal-main footer {
+  display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap;
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--edge);
 }
 .ig-cal-range {
   font: 11px/1.4 var(--mono); color: var(--muted);
@@ -88,7 +128,7 @@
 }
 .ig-cal-apply:hover:not(:disabled) { background: var(--amber-hi); border-color: var(--amber-hi); }
 .ig-cal-apply:disabled { opacity: .45; cursor: default; }
-.ig-cal-range[hidden], .ig-cal-apply[hidden] { display: none; }
+.ig-cal-range[hidden], .ig-cal-apply[hidden], .ig-cal-time[hidden] { display: none; }
 
 .ig-cal-clear {
   background: none; border: 0; cursor: pointer;

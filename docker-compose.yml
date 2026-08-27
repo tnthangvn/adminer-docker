@@ -28,3 +28,18 @@ services:
       - /tmp
     security_opt:
       - no-new-privileges:true
+
+  minio:
+    container_name: minio
+    image: minio/minio
+    restart: always
+    ports:
+      - ${MINIO_PORT}:9000
+      - 9001:9001
+    volumes:
+      - ${MINIO_DATA}:/data:rw
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_REGION_NAME: ${MINIO_REGION_NAME}
+    command: server /data --console-address :9001 --console-port 9001

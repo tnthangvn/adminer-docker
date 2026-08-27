@@ -1,3 +1,5 @@
 .env
 **/*.log
+minio
 dev-docker-compose.yml
+.playwright-mcp

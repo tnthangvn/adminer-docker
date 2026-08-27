@@ -84,10 +84,20 @@
 				<b class="ig-cal-month"></b>
 				<button type="button" class="ig-cal-step" data-step="1" title="Next month">›</button>
 			</header>
-			<div class="ig-cal-week">${WEEKDAYS.map(d => `<span>${d}</span>`).join('')}</div>
-			<div class="ig-cal-grid"></div>
+			<div class="ig-cal-body">
+				<div class="ig-cal-calendar">
+					<div class="ig-cal-week">${WEEKDAYS.map(d => `<span>${d}</span>`).join('')}</div>
+					<div class="ig-cal-grid"></div>
+				</div>
+				<div class="ig-cal-time" hidden>
+					<div class="ig-cal-wheels">
+						<div class="ig-cal-wheel ig-cal-hh" aria-label="hour"></div>
+						<div class="ig-cal-wheel ig-cal-mm" aria-label="minute"></div>
+						<div class="ig-cal-wheel ig-cal-ss" aria-label="second"></div>
+					</div>
+				</div>
+			</div>
 			<footer>
-				<label class="ig-cal-time" hidden>time <input type="text" placeholder="00:00:00" spellcheck="false" autocomplete="off"></label>
 				<span class="ig-cal-range" hidden></span>
 				<button type="button" class="ig-cal-apply" hidden>Apply</button>
 				<button type="button" class="ig-cal-clear">clear</button>
@@ -102,8 +112,57 @@
 		month: cal.querySelector('.ig-cal-month'),
 		grid: cal.querySelector('.ig-cal-grid'),
 		time: cal.querySelector('.ig-cal-time'),
-		timeInput: cal.querySelector('.ig-cal-time input'),
 	};
+
+	/* The time control is three iOS-style scroll wheels: a column snaps to whole
+	   values only, so what it reads back is always legal and there is no
+	   locale-bound native time field to fight. A wheel is a scroller whose ticks
+	   snap to centre; two half-height spacers let the first and last tick reach
+	   it, so tick i sits at scrollTop = i · WHEEL_TICK. */
+	const WHEEL_TICK = 24;
+	const wheels = {
+		hh: cal.querySelector('.ig-cal-hh'),
+		mm: cal.querySelector('.ig-cal-mm'),
+		ss: cal.querySelector('.ig-cal-ss'),
+	};
+
+	function buildWheel(el, n) {
+		const ticks = Array.from({ length: n }, (_, i) => `<div class="ig-cal-tick" data-i="${i}">${pad(i)}</div>`);
+		el.innerHTML = `<div class="ig-cal-pad"></div>${ticks.join('')}<div class="ig-cal-pad"></div>`;
+		el.dataset.n = n;
+	}
+	buildWheel(wheels.hh, 24);
+	buildWheel(wheels.mm, 60);
+	buildWheel(wheels.ss, 60);
+
+	const wheelIndex = el => Math.max(0, Math.min(+el.dataset.n - 1, Math.round(el.scrollTop / WHEEL_TICK)));
+	const eachWheel = fn => { fn(wheels.hh); fn(wheels.mm); fn(wheels.ss); };
+
+	/** Centre tick i, and mark it active so the middle number reads brighter. */
+	function setWheel(el, i, smooth) {
+		const n = +el.dataset.n;
+		const clamped = Math.max(0, Math.min(n - 1, i));
+		el.scrollTo({ top: clamped * WHEEL_TICK, behavior: smooth ? 'smooth' : 'auto' });
+		markActive(el);
+	}
+	function markActive(el) {
+		const at = wheelIndex(el);
+		el.querySelectorAll('.ig-cal-tick').forEach(t => t.classList.toggle('is-active', +t.dataset.i === at));
+	}
+
+	const getTime = () => `${pad(wheelIndex(wheels.hh))}:${pad(wheelIndex(wheels.mm))}:${pad(wheelIndex(wheels.ss))}`;
+
+	// Positioning the wheels emits scroll events too; hold off committing until
+	// they have flushed, so opening the panel does not rewrite an untouched field.
+	let programmatic = false;
+	function setTime(value) {
+		const [h = '0', m = '0', s = '0'] = (value || '').split(':');
+		programmatic = true;
+		setWheel(wheels.hh, +h || 0);
+		setWheel(wheels.mm, +m || 0);
+		setWheel(wheels.ss, +s || 0);
+		requestAnimationFrame(() => requestAnimationFrame(() => { programmatic = false; }));
+	}
 
 	let field = null;      // the input being edited
 	let cursor = today();  // month on show
@@ -128,13 +187,13 @@
 		ui.apply.hidden = !ranged();
 		ui.time.hidden = !withTime;
 		label();
-		// A timestamp column needs a time to be a timestamp. Show the midnight
-		// that is about to be written rather than leaving the box empty and
-		// silently storing a bare date.
-		ui.timeInput.value = withTime ? (timeOf(input.value) || '00:00:00') : '';
 
 		cal.hidden = false;
 		draw();
+		// A timestamp column needs a time to be a timestamp. Show the midnight
+		// about to be written rather than a bare date. Positioned after the panel
+		// is shown — a wheel cannot scroll while it is still display:none.
+		setTime(withTime ? (timeOf(input.value) || '00:00:00') : '00:00:00');
 		place();
 	}
 
@@ -239,7 +298,7 @@
 			return isoDate;
 		}
 
-		return `${isoDate} ${ui.timeInput.value.trim() || '00:00:00'}`;
+		return `${isoDate} ${getTime()}`;
 	}
 
 	function pickDay(isoDate) {
@@ -342,10 +401,29 @@
 		}
 	});
 
-	ui.timeInput.addEventListener('change', () => {
+	/* A wheel fires a stream of scroll events; write the field back once it
+	   settles, and keep the centred number highlighted while it turns. */
+	let settle;
+	function commitTime() {
 		const day = parse(field?.value);
 		if (day) {
 			pickDay(iso(day));
+		}
+	}
+	eachWheel(el => el.addEventListener('scroll', () => {
+		markActive(el);
+		if (programmatic) {
+			return;
+		}
+		clearTimeout(settle);
+		settle = setTimeout(commitTime, 140);
+	}));
+
+	// Tapping a number rolls that wheel to it; the scroll it starts commits.
+	cal.querySelector('.ig-cal-wheels').addEventListener('click', event => {
+		const tick = event.target.closest('.ig-cal-tick');
+		if (tick) {
+			setWheel(tick.parentElement, +tick.dataset.i, true);
 		}
 	});
 
