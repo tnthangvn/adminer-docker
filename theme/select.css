@@ -134,3 +134,118 @@
 @media all and (max-width: 800px) {
   .ig-drawer { width: 100vw; }
 }
+
+/* --- clear button --------------------------------------------------------- */
+
+.ig-clearable { position: relative; display: inline-block; }
+.ig-clearable input { padding-right: 20px; }
+
+/* The browser's own cross is drawn by the engine and ignores the palette. */
+.ig-clearable input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+
+.ig-clearable .ig-clear {
+  position: absolute; right: 1px; top: 1px; bottom: 1px;
+  width: 18px; min-width: 0; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: 0; border-radius: 0 3px 3px 0;
+  box-shadow: none; transform: none; transition: color var(--ease);
+  color: var(--faint); font: 14px/1 var(--ui); cursor: pointer;
+  opacity: 0; pointer-events: none;
+}
+.ig-clearable.is-on .ig-clear { opacity: 1; pointer-events: auto; }
+.ig-clearable .ig-clear:hover { color: var(--amber); border-color: transparent; }
+
+/* --- popovers ------------------------------------------------------------- */
+
+.ig-pop {
+  position: fixed; z-index: 50;
+  display: flex; flex-direction: column;
+  min-width: 240px; max-width: min(360px, calc(100vw - 16px));
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  box-shadow: 0 18px 44px -20px var(--shadow);
+  overflow: hidden;
+}
+.ig-pop[hidden] { display: none; }
+
+.ig-pop-head {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 8px 10px; border-bottom: 1px solid var(--edge);
+  background: color-mix(in srgb, var(--ink) 40%, var(--panel));
+}
+.ig-pop-head b { font: 500 12px/1.4 var(--mono); color: var(--amber); word-break: break-all; }
+.ig-pop-kind, .ig-cols-count {
+  margin-left: auto; flex: 0 0 auto;
+  font: 10px/1.4 var(--mono); color: var(--faint);
+}
+
+.ig-pop-row { display: flex; align-items: center; gap: 6px; padding: 9px 10px; }
+.ig-pop-row .ig-combo-button { min-width: 9ex; }
+.ig-pop-val {
+  flex: 1 1 auto; min-width: 0;
+  background: var(--ink); color: var(--fg);
+  border: 1px solid var(--edge); border-radius: 3px;
+  padding: 4px 8px; font: 12px/1.4 var(--mono);
+}
+.ig-pop-val:focus { outline: none; border-color: var(--amber); }
+.ig-pop-val:disabled { color: var(--faint); background: var(--rule); }
+.ig-pop-val[data-ig-date] { cursor: pointer; }
+
+.ig-pop-foot {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 10px; border-top: 1px solid var(--edge);
+}
+.ig-pop .ig-pop-foot button {
+  background: var(--raise); color: var(--fg);
+  border: 1px solid var(--edge); border-radius: 3px;
+  box-shadow: none;
+  font: 11px/1.5 var(--ui); padding: 3px 10px; cursor: pointer;
+}
+.ig-pop .ig-pop-foot button:hover { border-color: var(--amber); color: var(--amber); }
+.ig-pop-apply {
+  margin-left: auto;
+  background: var(--sel) !important; color: var(--amber) !important;
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--edge)) !important;
+}
+.ig-pop-apply:hover { background: var(--sel-hover) !important; }
+
+.ig-pop-sort { display: flex; gap: 4px; }
+.ig-pop-sort[hidden] { display: none; }
+.ig-pop .ig-pop-sort button { font: 11px/1.5 var(--mono); padding: 3px 8px; }
+
+/* --- the column header, once it filters ----------------------------------- */
+
+#table thead th[id^="th["] > a { cursor: pointer; }
+#table thead th[id^="th["] > a:hover { color: var(--amber); }
+
+/* --- column picker -------------------------------------------------------- */
+
+#fieldset-select .ig-cols-button {
+  margin-left: 8px; box-shadow: none;
+  background: none; border: 1px solid var(--edge); border-radius: 3px;
+  color: var(--muted); font: 10px/1.5 var(--ui); padding: 1px 7px; cursor: pointer;
+}
+#fieldset-select .ig-cols-button:hover { color: var(--amber); border-color: var(--amber); }
+
+.ig-pop-filter {
+  flex: 0 0 auto;
+  background: var(--ink); color: var(--fg);
+  border: 0; border-bottom: 1px solid var(--edge); border-radius: 0;
+  padding: 7px 10px; font: 12px/1.4 var(--mono);
+}
+.ig-pop-filter:focus { outline: none; }
+
+.ig-cols-list {
+  flex: 1 1 auto; max-height: min(50vh, 340px); overflow-y: auto; scrollbar-width: thin;
+  list-style: none; margin: 0; padding: 4px 0;
+}
+.ig-cols-item[hidden] { display: none; }
+.ig-cols-item label {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 10px; cursor: pointer;
+  font: 12px/1.5 var(--mono); color: var(--fg);
+}
+.ig-cols-item label:hover { background: var(--raise); }
+.ig-cols-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ig-cols-kind { margin-left: auto; flex: 0 0 auto; font-size: 10px; color: var(--faint); }

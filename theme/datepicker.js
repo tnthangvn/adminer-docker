@@ -33,8 +33,8 @@
 
 	const timeOf = value => (/\d{2}:\d{2}(:\d{2})?/.exec(value || '') || [''])[0];
 
-	/** The condition row an element sits in, past the combobox wrapper. */
-	const rowOf = el => el.parentElement;
+	/** The condition row an element sits in, past the combobox and clear wrappers. */
+	const rowOf = el => el.closest('#fieldset-search div') || el.parentElement;
 
 	/**
 	 * The edit form renders every column as a bare text box, so the types come

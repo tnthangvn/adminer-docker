@@ -124,6 +124,32 @@ number spinner for numerics, `true`/`false` for booleans, and the allowed labels
 for an enum. The operator also stops defaulting to `LIKE %%` on types where it
 makes no sense — until you pick one yourself, after which it is left alone.
 
+A filled value box carries a clear cross, the one `type=search` is supposed to
+draw and the palette swallows. Dropping a value that came back with the page
+re-runs the query without it, because removing a filter is the only reason to
+clear it.
+
+## Filter from the column header
+
+The search form sits above the grid and asks for the column again, even though
+you got there by looking at one. Click a column header and the panel that opens
+asks the two questions left — which test, which value — and submits: the box is
+typed like the search form's own, so a timestamp opens the calendar. The panel
+keeps `↑`/`↓` for sorting, the header's hover arrow still sorts on its own, and
+a Ctrl- or Shift-click follows the sort link as before.
+
+The whole cell opens it, not just the name: a bare click on a header row is
+Adminer's shortcut for ticking every row in the page, which is never what
+someone aiming at a column meant.
+
+## Column picker
+
+Limiting the columns means filling one dropdown per column you want to keep, in
+a fieldset that starts collapsed. `columns` in the SELECT legend opens the same
+thing as a checklist — every column of the table, its type beside it, a filter
+box for wide tables. Ticking everything is plain `SELECT *`, so it submits with
+the column list empty.
+
 ## Redis
 
 Upstream publishes a Redis driver, but only from 6.0.x — the 5.4.1 download has
@@ -197,7 +223,7 @@ src/plugins/            upstream plugins, all available via ADMINER_PLUGINS
 theme/core.css          structure layer, colour-free
 theme/tokens-*.css      the two palettes
 theme/schema.*          the schema walker
-theme/select.*          row inspector and typed search
+theme/select.*          row inspector, typed search, header filter, column picker
 theme/enums.*           PostgreSQL enum labels
 theme/combo.*           searchable selects, on every page
 theme/datepicker.*      the calendar and its range shortcuts
