@@ -504,7 +504,120 @@ body:has(#username) table.layout th {
 }
 body:has(#username) table.layout td { padding: 0 0 13px; }
 body:has(#username) table.layout input:not([type="checkbox"]),
+body:has(#username) table.layout textarea,
 body:has(#username) table.layout select { width: 100%; padding: 8px 10px; font-size: 13px; }
+
+/* The SSH tunnel card.
+   It shares Adminer's one login form — see SshCard — so in the markup it is a
+   block inside the login card. Given room, it is lifted out to sit beside it:
+   opening a tunnel and logging in are two jobs, and reading as two panels says
+   so before anything is typed. The login card keeps the plinth and stays where
+   it was, centred, because it is still the destination; the tunnel card is
+   flat because it is the tool.
+   Absolute, not a second grid column, so the login card does not move when the
+   tunnel card appears, grows a list, or is switched off entirely. */
+body:has(#username) .ig-tunnel {
+  margin: 0 0 16px; padding: 12px 12px 4px;
+  background: color-mix(in srgb, var(--ink) 55%, transparent);
+  border: 1px solid var(--edge); border-radius: 7px;
+}
+
+body:has(#username) .ig-tunnel h3 {
+  margin: 0 0 10px; font: 500 11px/1.4 var(--mono);
+  color: var(--muted); text-transform: uppercase; letter-spacing: .06em;
+}
+body:has(#username) .ig-tunnel label {
+  display: block; margin: 0 0 9px;
+  font: 500 11px/1.4 var(--mono); color: var(--muted);
+}
+body:has(#username) .ig-tunnel input { width: 100%; margin-top: 4px; padding: 7px 9px; font-size: 13px; }
+body:has(#username) .ig-tunnel p { margin: 2px 0 8px; }
+body:has(#username) .ig-tunnel button { padding: 6px 11px; font-size: 12px; }
+body:has(#username) .ig-tunnel summary {
+  margin: 2px 0 10px; cursor: pointer;
+  font: 500 11px/1.4 var(--mono); color: var(--muted);
+}
+body:has(#username) .ig-tunnel .error { margin: 0 0 10px; }
+body:has(#username) .ig-tunnel .ig-note { margin: 0 0 10px; font-size: 11px; color: var(--muted); }
+body:has(#username) .ig-tunnel select { width: 100%; margin-top: 4px; padding: 7px 9px; font-size: 13px; }
+
+/* Key or password. Two radios on one line, because it is one question, and
+   the fields below it change to match. */
+body:has(#username) .ig-auth { display: flex; gap: 14px; margin: 0 0 9px; }
+body:has(#username) .ig-auth label {
+  display: flex; gap: 6px; align-items: center; margin: 0;
+  font: 500 11px/1.4 var(--mono); color: var(--fg); cursor: pointer;
+}
+body:has(#username) .ig-auth input { width: auto; margin: 0; }
+/* The block display above outranks [hidden] unless this says otherwise. */
+body:has(#username) .ig-tunnel [hidden] { display: none; }
+
+/* The tunnel list. Name on top, what it reaches beneath it, and the local
+   address only on the ones that have one — a row is a tunnel whether it is
+   running or not, and the address is what changes. */
+body:has(#username) .ig-open { margin: 0 0 12px; padding: 0; list-style: none; }
+body:has(#username) .ig-open li { padding: 9px 0; border-top: 1px solid var(--edge); }
+body:has(#username) .ig-open li:first-child { border-top: 0; }
+body:has(#username) .ig-open strong {
+  display: block; font: 500 12px/1.4 var(--sans, inherit); color: var(--fg);
+}
+body:has(#username) .ig-open code {
+  display: block; margin-top: 2px;
+  font: 12px/1.4 var(--mono); color: var(--amber);
+}
+body:has(#username) .ig-open span {
+  display: block; margin-top: 2px;
+  font-size: 11px; color: var(--muted); overflow-wrap: anywhere;
+}
+body:has(#username) .ig-open .ig-current strong { color: var(--amber); }
+
+/* The hosts your ~/.ssh/config already names. A quieter list than the tunnels
+   above it: these are places, not things that are running. */
+body:has(#username) .ig-from {
+  margin: 0 0 6px; padding-top: 10px; border-top: 1px solid var(--edge);
+  font: 500 10px/1.4 var(--mono); color: var(--faint);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+body:has(#username) .ig-hosts { margin: 0 0 12px; padding: 0; list-style: none; }
+body:has(#username) .ig-hosts li {
+  display: flex; gap: 7px; align-items: center; padding: 3px 0;
+}
+body:has(#username) .ig-hosts span {
+  flex: 1; min-width: 0; font: 12px/1.4 var(--mono); color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+body:has(#username) .ig-hosts button { padding: 2px 8px; font-size: 11px; }
+
+body:has(#username) .ig-tunnel .ig-acts {
+  display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px;
+}
+body:has(#username) .ig-open .ig-acts button { padding: 3px 9px; font-size: 11px; }
+body:has(#username) .ig-tunnel .ig-quiet { color: var(--muted); }
+
+/* Given room, the tunnel card is lifted out of the login card to sit beside
+   it. It has to come after the rules above, not with them: the block styles
+   set `font` on the heading, and a shorthand later in the file would put the
+   size back. */
+@media (min-width: 860px) {
+  body:has(#username) .ig-tunnel {
+    position: absolute; top: 0; right: calc(100% + 26px);
+    width: 330px; box-sizing: border-box;
+    /* The login card's own padding, so the two headings sit on one line. */
+    margin: 0; padding: 28px 28px 20px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--raise) 35%, var(--panel)), var(--panel) 80px);
+    border-radius: 10px;
+    box-shadow: var(--lift-3);
+  }
+  /* A card title now rather than a label inside one. */
+  body:has(#username) .ig-tunnel h3 {
+    margin: 0 0 18px;
+    font: 15px/1.3 var(--sans, inherit); color: var(--fg);
+    text-transform: none; letter-spacing: 0;
+  }
+}
+body:has(#username) .ig-open .ig-current code { color: var(--amber); }
+body:has(#username) .ig-open button { padding: 3px 8px; font-size: 11px; }
+body:has(#username) .ig-open .ig-close { color: var(--muted); }
 
 body:has(#username) #content p { margin: 4px 0 0; }
 body:has(#username) #content p input[type="submit"] {

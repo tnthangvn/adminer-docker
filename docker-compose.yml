@@ -1,6 +1,14 @@
 services:
   adminer:
-    build: .
+    build:
+      context: .
+      args:
+        # Who the container runs as. The default is a service account; set
+        # these to your own ids to let it READ a mounted ~/.ssh, whose private
+        # keys are 0600 and belong to you:
+        #   HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up -d --build
+        HOST_UID: "${HOST_UID:-10001}"
+        HOST_GID: "${HOST_GID:-10001}"
     image: adminer-instrument:5.4.1
     container_name: adminer
     restart: always
@@ -16,10 +24,39 @@ services:
       ADMINER_DEFAULT_DB: ""
       # Concurrency for the built-in server. 1 disables workers.
       PHP_CLI_SERVER_WORKERS: 4
+      # Your own ~/.ssh, as mounted below. With it, the card's Bastion field takes
+      # a Host alias and the username, port and key come from the config.
+      ADMINER_SSH_CONFIG_DIR: "${ADMINER_SSH_CONFIG_DIR:-/ssh}"
+      # The tunnel card on the login page. off removes it.
+      ADMINER_SSH_UI: "${ADMINER_SSH_UI:-on}"
+      # Tunnels opened at STARTUP, for a bastion everyone shares. One per line:
+      #   label=<local_port>:<db_host>:<db_port>:<ssh_user>@<ssh_host>[:<ssh_port>]
+      # `db_host` is resolved on the bastion, so it can be a name only the
+      # bastion knows. The tunnels then show up as Server suggestions on the
+      # login page as 127.0.0.1:<local_port>. Empty = none opened at startup;
+      # the login form still opens its own on demand.
+      ADMINER_SSH_TUNNELS: "${ADMINER_SSH_TUNNELS:-}"
+      # Default key for every tunnel; override per tunnel with |key=<path>.
+      ADMINER_SSH_KEY: "${ADMINER_SSH_KEY:-}"
+      # Pin the bastion's host key. Without it the first host key seen is
+      # trusted — fine on a laptop, not on a shared network.
+      ADMINER_SSH_KNOWN_HOSTS: "${ADMINER_SSH_KNOWN_HOSTS:-}"
+      # Where the card keeps saved tunnels. Bastions, hosts and ports only —
+      # never a key or a password.
+      ADMINER_SSH_PROFILES: "${ADMINER_SSH_PROFILES:-/data/tunnels.json}"
     volumes:
       # Live theme editing: a save shows up on the next refresh. Drop this line
       # to use the stylesheets baked into the image.
       - ./theme:/app/theme:ro
+      # Your ~/.ssh, so the login form can name a Host from your config and use
+      # the keys you already have. Host permissions do not matter — the files
+      # are staged into tmpfs at 0600, which is the only way ssh accepts a
+      # bind-mounted key. READ THE SECURITY NOTE IN THE README FIRST: this puts
+      # every key in that directory behind the login page.
+      - ${HOME}/.ssh:/ssh:ro
+      # The tunnels saved from the card. A named volume, so they survive
+      # `up --build`; the container root stays read-only either way.
+      - adminer-tunnels:/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
     # Nothing is written to the image at runtime, so it can run locked down.
@@ -43,3 +80,6 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_REGION_NAME: ${MINIO_REGION_NAME}
     command: server /data --console-address :9001 --console-port 9001
+
+volumes:
+  adminer-tunnels:

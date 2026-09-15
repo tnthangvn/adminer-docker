@@ -11,6 +11,7 @@ plugin set turned on by default, and a theme built for reading dense tables.
 | drivers             | MySQL, PgSQL (PDO), SQLite, dblib, ODBC | MySQL, PgSQL (**native + PDO**), SQLite, **MongoDB** |
 | plugins             | none, unless you set `ADMINER_PLUGINS` | 16 on by default |
 | runtime writes      | symlinks + generated plugin files | none — runs `read_only: true` |
+| databases behind SSH | not supported | a bastion on the login form, plus tunnels from env |
 | `X-Powered-By`      | leaks the PHP version | off |
 
 The PHP payload is copied from the official image at build time, so `adminer.php`
@@ -38,6 +39,17 @@ docker run -d -p 9006:8080 adminer-instrument
 | `ADMINER_PLUGINS_ADD` | — | Adds to the default set |
 | `ADMINER_PLUGINS_DISABLE` | — | Removes from the default set |
 | `PHP_CLI_SERVER_WORKERS` | `4` | Worker processes for the built-in server |
+| `ADMINER_SSH_UI` | `on` | `off` removes the tunnel card from the login page |
+| `ADMINER_SSH_CONFIG_DIR` | `/ssh` | Where a mounted `~/.ssh` is read from |
+| `ADMINER_SSH_PROFILES` | `/data/tunnels.json` | Where saved tunnels are kept |
+| `ADMINER_SSH_TUNNELS` | — | Tunnels opened at startup — see below |
+| `ADMINER_SSH_KEY` | — | Default private key for those startup tunnels |
+| `ADMINER_SSH_KNOWN_HOSTS` | — | Host keys to pin; without it, first key seen is trusted |
+| `ADMINER_SSH_IDLE` | `1800` | Seconds before an unused login-form tunnel is closed |
+| `ADMINER_SSH_TIMEOUT` | `10` | Seconds to wait for a bastion to answer |
+| `ADMINER_SSH_OPTS` | — | Extra `ssh -o` arguments for the startup tunnels |
+| `ADMINER_SSH_RETRY` | `5` | Seconds before a dropped startup tunnel is dialled again |
+| `ADMINER_SSH_WAIT` | `15` | Seconds to wait for the startup tunnels before serving |
 
 The password is never prefilled.
 
@@ -58,6 +70,255 @@ Two upstream plugins are deliberately left out:
 - **`before-unload`** counts a browser-autofilled password as an edit, so the
   login page starts asking "leave site?". Add it back with
   `ADMINER_PLUGINS_ADD=before-unload` if you want it on the edit forms.
+
+## Databases behind SSH
+
+Adminer has no SSH of its own, and no PHP driver can be handed a tunnelled
+stream — `mysqli` and `libpq` each open their own socket, and neither will take
+one you already have. So the tunnel is a real `ssh -L` process living beside the
+application: the login form asks for a bastion, the tunnel is opened before the
+login is attempted, and Adminer connects to the local end of it without knowing
+anything happened.
+
+### The tunnel card
+
+Beside the login form is a card that manages tunnels. It lists what you have
+saved, opens and closes them, and puts the local address of the one you just
+opened straight into the Server field — so logging in is the next thing you do
+and nothing has to be copied by hand.
+
+| Field | What goes in it |
+| --- | --- |
+| Name | what to call it in the list; made up from the rest if left blank |
+| Bastion | a `Host` from your `~/.ssh/config`, or `user@host`, or `host:port` |
+| SSH key / Password | which way to get in — see below |
+| Key | which private key, when there is more than one; blank lets the config choose |
+| SSH username | the account on the bastion |
+| passphrase / password | whichever the choice above calls for. **Never saved** |
+| Database host | the database **as the bastion sees it** — usually `localhost` |
+| Database port | its port over there |
+| Local port | which port to take here; blank lets the kernel pick |
+
+**SSH key or Password is asked outright, not worked out.** The two are told
+apart by the prompt `ssh` writes to a tty — `Enter passphrase` for a key,
+`Password:` for an account — and nothing that answers that prompt on your
+behalf can tell which one is coming before it arrives. Guessing meant a wrong
+guess sat in front of a prompt that never came until a timeout cut it off. One
+radio button removes the guess: the passphrase prompt is watched for in key
+mode, the password prompt in password mode, and password mode also turns key
+authentication off so a key lying around cannot answer for you — succeeding for
+the wrong reason, and going on doing so until the day the key is gone.
+
+A key that needs a passphrase says so before connecting rather than coming back
+as `Permission denied (publickey)`.
+
+So for a database in Docker on a machine you reach as `rv-dev`:
+
+```
+Bastion          rv-dev
+Database host    localhost
+Database port    5437
+```
+
+**Save** keeps it; **Open** brings it up; **Use** points the login form at one
+that is already up; **Close** takes it down; **Edit** and **Delete** do what
+they say. A tunnel opened without being saved is listed too, as "Not saved" —
+a tunnel holding a port is a thing that exists, and leaving it off the list is
+how ports go missing.
+
+Under the tunnels, every `Host` in a mounted `~/.ssh/config` is listed as
+somewhere to tunnel through — the same list your shell and your editor show
+you, because it is the same file. **Tunnel** on one of them fills in the
+bastion and leaves you the database and the port, which is the half your config
+does not know. They are listed in full rather than filtered down to the ones
+that look like bastions: a `Host` that only ever serves git today is still a
+machine with a port you might want tomorrow.
+
+Opening a tunnel and logging in are deliberately two acts rather than one. It
+is the shape the job already had — `ssh -L` in one terminal, Adminer pointed at
+127.0.0.1 in the other — and keeping it is what makes a tunnel worth having:
+one tunnel serves as many logins, databases and sessions as you point at it,
+and a mistyped database password costs a retry rather than a reconnection.
+
+Below 860px wide the card folds back inside the login card, above the fields.
+
+### Where the saved tunnels live
+
+In `/data/tunnels.json`, which is a named volume in `docker-compose.yml`, so
+they survive `up --build`. Leave that volume out and the card still opens
+tunnels — it just stops offering to save them, and says so.
+
+What is **not** in that file is any secret. A saved tunnel names a bastion, a
+database, a port, and which way it authenticates — never the passphrase or the
+password, which are typed each time. Writing a bastion password to a volume to
+save that typing is a bad trade, and the card does not offer it: opening a saved
+password tunnel asks for the password again, every time.
+
+The file is shared by everyone who can reach the page, the same way
+`~/.ssh/config` is shared by everyone who can read it. The tunnels themselves
+are not: each browser opens, keeps alive and closes its own. Move it with
+`ADMINER_SSH_PROFILES`.
+
+### Using the ~/.ssh you already have
+
+Mount your own `~/.ssh` and the SSH username, port and key all become optional
+— they come from your config, the same way they would from a shell:
+
+```yaml
+volumes:
+  - ${HOME}/.ssh:/ssh:ro
+```
+
+**Rebuild as yourself for this to work.** A private key is `0600` and belongs
+to you, so a container running as a service account cannot open it — and `ssh`
+refuses to start at all for a uid with no entry in `/etc/passwd`, which rules
+out a plain `user:` override. The uid is therefore a build argument:
+
+```bash
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up -d --build
+```
+
+Without it the card says which files it could not read, rather than letting it
+surface later as `no such identity` for a key that is plainly right there.
+
+Every `Host` in it is then listed in the card, and the Bastion field takes an
+alias directly:
+
+```
+Host prod-bastion
+  HostName 10.0.0.9
+  User deploy
+  Port 2222
+  IdentityFile ~/.ssh/id_rsa
+```
+
+Press **Tunnel** beside `prod-bastion`, give the database host and port, and
+open it. A host your config does not name still works — type it into Bastion,
+and the mounted keys are tried for it too.
+
+The **Key** dropdown lists the private keys it staged, for when the bastion is
+not one your config names, or when it names the wrong key. Leave it blank and
+the config decides, as it would from a shell.
+
+Two things have to happen for a mounted config to work at all, and neither is
+obvious enough to leave to chance:
+
+- **The files are staged into tmpfs at `0600`.** `ssh` refuses a private key it
+  believes anyone can read, and a bind mount carries the host's permissions and
+  the host's owner — so a perfectly good `~/.ssh` mounted straight in is
+  rejected key by key. The copies also give ssh somewhere to append a host key,
+  which a read-only mount is not.
+- **The config is passed with `-F`, and its `~/` is rewritten.** ssh finds the
+  per-user config through `getpwuid()`, not `$HOME`, and expands `~` the same
+  way — so a mounted config would simply be ignored, and its
+  `IdentityFile ~/.ssh/id_rsa` would point at the image's read-only `/app` and
+  fail with `no such identity`.
+
+`ADMINER_SSH_CONFIG_DIR` moves the mount point if `/ssh` is inconvenient.
+
+### Once you are in
+
+The tunnel's local port is what ends up in the URL — the address bar reads
+`?pgsql=127.0.0.1:13042`. A few consequences worth knowing:
+
+- **The same bastion and database always reuse the same tunnel**, so a
+  bookmarked URL still means something an hour later.
+- **A dropped tunnel is reopened on the next page load.** Reboot the bastion
+  and you refresh; you do not log in again.
+- **Logging out leaves it open**, because the tunnel was never part of the
+  login. Close it from the card, or leave it: a tunnel nobody has used for
+  `ADMINER_SSH_IDLE` seconds (30 minutes by default) is swept away.
+- **A tunnel that will not open says why** — `Permission denied`,
+  `Could not resolve hostname`, `Wrong SSH password or key passphrase`. That
+  is the other half of separating the two steps: an SSH failure reads as an
+  SSH failure, instead of surfacing later as `connection refused` from a
+  database that was never contacted.
+
+### A fixed bastion, opened at startup
+
+For a bastion everyone uses, `ADMINER_SSH_TUNNELS` declares tunnels that are
+opened before the web server starts and supervised for the life of the
+container. They show up as suggestions on the Server field, and the
+healthcheck covers them, so `docker ps` stops claiming health this container
+does not have.
+
+```yaml
+environment:
+  ADMINER_SSH_TUNNELS: |
+    prod=13306:10.0.0.5:3306:deploy@bastion.example.com
+    stage=15432:db.internal:5432:ubuntu@1.2.3.4:2222|key=/run/secrets/stage_key
+  ADMINER_SSH_KEY: /run/secrets/ssh_key
+volumes:
+  - ./ssh/id_ed25519:/run/secrets/ssh_key:ro
+```
+
+One per line, commas also work:
+
+```
+label=<local_port>:<db_host>:<db_port>:<ssh_user>@<ssh_host>[:<ssh_port>][|opt=value…]
+```
+
+The SSH user and port may be left out, in which case a mounted `~/.ssh/config`
+supplies them — `local=13307:localhost:3306:prod-bastion` is a whole tunnel.
+
+Per-tunnel options after a `|`: `key=<path>` for a key other than
+`ADMINER_SSH_KEY`, and `pass=<VAR>` — the **name** of an environment variable
+holding the password, so the secret stays out of the spec string, out of
+`docker inspect`, and out of the log. The label is what the login page shows;
+omit it and the local port is used. `db_host` is resolved on the bastion, and
+every local port binds to `127.0.0.1` inside the container and is published
+nowhere. Leave `ADMINER_SSH_TUNNELS` empty and no ssh runs at startup at all.
+
+### What it does about the things that go wrong
+
+**A key mounted from the host.** `ssh` rejects a private key it thinks anyone
+can read, and a bind-mounted file carries the host's permissions and the host's
+owner — which is why `-v ./id_ed25519:…:ro` normally ends in `UNPROTECTED
+PRIVATE KEY FILE`. Keys are copied into tmpfs at `0600` before use, so it works
+whatever the host thinks. The copies live in RAM and die with the container.
+
+**A bastion that goes away.** Startup tunnels are supervised: `ssh` runs in the
+foreground and is redialled `ADMINER_SSH_RETRY` seconds after it exits.
+Login-form tunnels are reopened on the next request that needs them. Keepalives
+every 10s are what make a dead peer *count* as gone — otherwise ssh would sit
+there holding a local port open and accepting connections it could no longer
+forward.
+
+**A bastion nobody has vouched for.** A `known_hosts` staged from your own
+`~/.ssh` is used strictly — those are host keys you have already met. With
+nothing to go on, the first key offered is accepted and a warning is logged:
+enough to get going, not enough to notice a man in the middle on that first
+connection. Mounting your `~/.ssh`, or pointing `ADMINER_SSH_KNOWN_HOSTS` at a
+file, makes host keys binding.
+
+**A prompt nobody is going to answer.** `sshpass` watches for one prompt word;
+in front of any other it waits, ssh waits with it, and `ConnectTimeout` was
+satisfied long ago. The card asking which prompt to expect is what keeps this
+from happening; the hard timeout on every attempt is what keeps it from
+mattering when something else asks something unexpected.
+
+### What this trusts
+
+Anyone who can reach the login form can now make this container open an SSH
+connection to a host of their choosing, with credentials of their choosing.
+That is the same trust Adminer already extends — its login form will connect to
+any database host you type — but the blast radius is larger, so it is worth
+saying out loud rather than discovering.
+
+**Mounting `~/.ssh` puts every key in it behind the login page.** Not just the
+bastion's: anyone who can reach the form can reach anything those keys open,
+without needing to know a passphrase for the ones that have none. Mount a
+directory holding only the keys this is meant to use, rather than your whole
+`~/.ssh`, wherever that distinction matters.
+
+Credentials for a live tunnel are held in tmpfs, `0600` in a `0700` directory
+owned by the runtime user, because reopening a dropped tunnel means having them;
+they die with the container. A tunnel is reused, kept alive and closed only for
+the browser that opened it, but a port that is currently up is still a port on
+the loopback: someone else on the same instance who guesses it could connect
+through it, if they also had the database's own credentials. Where that matters,
+`ADMINER_SSH_UI=off` removes the form fields and the on-demand path entirely,
+leaving only the tunnels declared in the environment.
 
 ## The theme
 
