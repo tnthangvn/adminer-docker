@@ -71,6 +71,32 @@ Two upstream plugins are deliberately left out:
   login page starts asking "leave site?". Add it back with
   `ADMINER_PLUGINS_ADD=before-unload` if you want it on the edit forms.
 
+One fix is always on, whatever `ADMINER_PLUGINS` says, for PostgreSQL SQL
+exports that upstream writes but cannot import back:
+
+- routines are written as `pg_get_functiondef()` gives them — upstream turns an
+  array parameter into the bare word `ARRAY` and drops OUT, defaults and
+  volatility; one taking or returning a table's row type goes after the tables;
+- functions owned by an extension (`pg_trgm`, `unaccent` …) are left out, and
+  `CREATE EXTENSION IF NOT EXISTS` is written for each extension in the schema;
+- column defaults keep their quotes — upstream writes `'draft'::status` as
+  `DEFAULT draft`;
+- partitions are written as `CREATE TABLE … PARTITION OF … FOR VALUES …` and
+  carry the rows, the partitioned table gets none of its own — upstream makes
+  each partition a separate table and inserts every row a second time through a
+  parent with no partitions ("no partition of relation found for row");
+- foreign keys the server cloned onto partitions are not added a second time,
+  and a partitioned table's keys drop the `ONLY` it refuses;
+- with Routines unticked, the functions a table cannot be created without — in
+  a column default, a CHECK or an index — are written anyway. Upstream's form
+  unticks Routines by itself when Export is opened from a table page, and a
+  `DEFAULT uuid_generate_v7()` then fails with "function does not exist";
+- a CHECK that is a single function call keeps its parentheses.
+
+Still out of reach: aggregates, `GENERATED ALWAYS AS IDENTITY` columns, and
+`\connect` in a `DROP+CREATE` database dump, which only `psql` understands. For
+a database with those, `pg_dump` is the tool.
+
 ## Databases behind SSH
 
 Adminer has no SSH of its own, and no PHP driver can be handed a tunnelled

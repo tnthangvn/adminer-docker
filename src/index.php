@@ -705,7 +705,513 @@ namespace Instrument {
             }
         }
 
-        $plugins = [new Theme(), new PageAssets(), new LoginDefaults(), new SshCard()];
+        /**
+         * Keeps a PostgreSQL SQL export importable.
+         *
+         * Upstream writes several things it cannot read back:
+         *
+         *   - routines are rebuilt from information_schema, so an array
+         *     parameter comes out as the bare word ARRAY and OUT/defaults/
+         *     volatility are dropped — "type recipe_ids[] does not exist";
+         *   - an extension's functions are dumped as bare C functions naming a
+         *     symbol but no library — "could not access file" — and nothing
+         *     says CREATE EXTENSION;
+         *   - a column default loses its quotes with its cast, see
+         *     withServerDefaults();
+         *   - a partition is dumped as a table of its own, and every row a
+         *     second time through its parent, which has no partitions yet —
+         *     "no partition of relation found for row";
+         *   - the foreign keys a partition inherits are added again, and a
+         *     partitioned table gets ALTER TABLE ONLY, which it refuses.
+         *
+         * None of that has a hook of its own, so two output buffers do the
+         * work. One holds what each database prints before its first table —
+         * \connect, types, routines, a few kB — and rewrites it: routines from
+         * pg_get_functiondef(), extension routines out, CREATE EXTENSION in.
+         * The other stays open for the whole database and only ever removes
+         * whole lines it was told about in advance: the foreign keys that the
+         * server will already have made. Anything held back — a routine that
+         * needs a table, a foreign key upstream lost — is written once every
+         * table exists.
+         *
+         * It runs before every other plugin and returns null unless it wrote
+         * the statement itself, so their dump hooks still fire.
+         */
+        final class PgDump extends \Adminer\Plugin
+        {
+            /** output-buffer level of the preamble buffer, while it is open */
+            private ?int $level = null;
+
+            /** output-buffer level of the line filter, while it is open */
+            private ?int $filterLevel = null;
+
+            /** the unterminated end of the last chunk the filter saw */
+            private string $carry = '';
+
+            /** @var array<string, true> exact lines the filter removes */
+            private array $dropLines = [];
+
+            private string $db = '';
+
+            private bool $prepared = false;
+
+            /** @var array<string, string> partition => its CREATE TABLE … PARTITION OF */
+            private array $partitions = [];
+
+            /** @var array<string, true> partitioned tables */
+            private array $partitioned = [];
+
+            /** statements held until every table exists */
+            private string $deferred = '';
+
+            private function active(): bool
+            {
+                return \Adminer\JUSH === 'pgsql' && ($_POST['format'] ?? '') === 'sql';
+            }
+
+            public function dumpDatabase($db)
+            {
+                $this->finishDatabase();
+                if ($this->active()) {
+                    $this->db = $db;
+                    $this->prepared = false;
+                    $this->partitions = $this->partitioned = $this->dropLines = [];
+                    ob_start([$this, '_filter'], 1 << 16);
+                    $this->filterLevel = ob_get_level();
+                    ob_start();
+                    $this->level = ob_get_level();
+                }
+
+                return null;
+            }
+
+            public function dumpTable($table, $style, $is_view = 0)
+            {
+                $this->release();
+                if (!$this->active()) {
+                    return null;
+                }
+
+                $this->prepare();
+                // 1 is the late pass that writes the real views, after every
+                // table and foreign key: the first point where all of them
+                // exist, and before a view that may call a held-back routine.
+                if ($is_view == 1) {
+                    $this->flushDeferred();
+
+                    return null;
+                }
+                if ($is_view != 0 || $style === '') {
+                    return null;
+                }
+
+                // What Adminer's own dumpTable() prints for a table.
+                $drop = $style === 'DROP+CREATE' ? 'DROP TABLE IF EXISTS ' . \Adminer\table($table) . ";\n" : '';
+
+                if (isset($this->partitions[$table])) {
+                    // Columns, keys and indexes all come from the parent.
+                    echo $drop . $this->partitions[$table] . ";\n\n";
+
+                    return true;
+                }
+
+                $sql = \Adminer\create_sql($table, $_POST['auto_increment'] ?? '', $style);
+                if (!$sql) {
+                    return null;
+                }
+
+                $sql = $this->withServerDefaults($table, $sql);
+                // information_schema gives a CHECK that is one function call
+                // without its parentheses, and "CHECK pos(qty)" is a syntax error.
+                foreach (\Adminer\driver()->checkConstraints($table) as $name => $clause) {
+                    if (!str_starts_with($clause, '(')) {
+                        $check = 'CONSTRAINT ' . \Adminer\idf_escape($name) . ' CHECK ';
+                        $sql = str_replace($check . $clause, $check . "($clause)", $sql);
+                    }
+                }
+                if (isset($this->partitioned[$table])) {
+                    // ON ONLY leaves the index invalid and off the partitions;
+                    // plain ON puts it on each partition as it is attached.
+                    $sql = preg_replace('~^(CREATE (?:UNIQUE )?INDEX .*?) ON ONLY ~m', '$1 ON ', $sql);
+                }
+                echo $drop . $sql . ";\n\n";
+
+                return true;
+            }
+
+            public function dumpData($table, $style, $query)
+            {
+                // A partitioned table's rows come out with its partitions.
+                // Read through the parent they would be written twice, and the
+                // first time into a table with no partition to take them yet.
+                return $this->active() && isset($this->partitioned[$table]) ? true : null;
+            }
+
+            public function dumpFooter()
+            {
+                $this->finishDatabase();
+
+                return null;
+            }
+
+            /**
+             * Puts each column default back the way the server stores it.
+             *
+             * Adminer strips the cast off a default and then re-quotes it only
+             * for a text-like type, so 'draft'::status comes out as the bare
+             * word draft ("cannot use column reference in DEFAULT expression")
+             * and '2024-01-01'::date as 2024 minus 1 minus 1. Identity and
+             * generated columns are Adminer's to write and are left alone.
+             */
+            private function withServerDefaults(string $table, string $sql): string
+            {
+                // attgenerated is PostgreSQL 12+; older servers get no rows and
+                // the statement stays as Adminer wrote it.
+                $defaults = \Adminer\get_key_vals(
+                    "SELECT a.attname, pg_get_expr(d.adbin, d.adrelid)
+FROM pg_attrdef d
+JOIN pg_attribute a ON a.attrelid = d.adrelid AND a.attnum = d.adnum
+WHERE d.adrelid = " . \Adminer\driver()->tableOid($table) . " AND a.attidentity = '' AND a.attgenerated = ''"
+                );
+
+                foreach (\Adminer\fields($table) as $name => $field) {
+                    if (!isset($defaults[$name])) {
+                        continue;
+                    }
+
+                    $column = "\n    " . \Adminer\idf_escape($name) . ' ' . $field['full_type'];
+                    $notNull = $field['null'] ? '' : ' NOT NULL';
+                    $adminer = $column . \Adminer\default_value($field) . $notNull;
+                    $at = strpos($sql, $adminer);
+                    $next = $at === false ? '' : substr($sql, $at + strlen($adminer), 1);
+                    if ($next === ',' || $next === "\n") {
+                        $sql = substr_replace($sql, $column . ' DEFAULT ' . $defaults[$name] . $notNull, $at, strlen($adminer));
+                    }
+                }
+
+                return $sql;
+            }
+
+            private function finishDatabase(): void
+            {
+                $this->release();
+                $this->flushDeferred();
+                if ($this->filterLevel !== null && ob_get_level() === $this->filterLevel) {
+                    ob_end_flush();
+                }
+                $this->filterLevel = null;
+            }
+
+            private function flushDeferred(): void
+            {
+                echo $this->deferred;
+                $this->deferred = '';
+            }
+
+            private function release(): void
+            {
+                if ($this->level === null) {
+                    return;
+                }
+
+                // Someone else's buffer on top of ours: leave both alone, the
+                // dump then comes out exactly as Adminer wrote it.
+                $mine = ob_get_level() === $this->level;
+                $this->level = null;
+                if ($mine) {
+                    echo $this->rewrite((string) ob_get_clean());
+                }
+            }
+
+            /**
+             * Output handler for the whole database: drops the lines listed in
+             * $dropLines and passes everything else through untouched. Only
+             * complete lines are judged, so a line split across two chunks is
+             * held until its end arrives. Public for ob_start(); the leading
+             * underscore keeps it from being taken for an Adminer hook.
+             */
+            public function _filter(string $chunk, int $phase): string
+            {
+                $text = $this->carry . $chunk;
+                $this->carry = '';
+                if (!($phase & PHP_OUTPUT_HANDLER_FINAL)) {
+                    $cut = strrpos($text, "\n");
+                    $this->carry = $cut === false ? $text : substr($text, $cut + 1);
+                    $text = $cut === false ? '' : substr($text, 0, $cut + 1);
+                }
+
+                if (!$this->dropLines || !str_contains($text, 'ALTER TABLE ONLY ')) {
+                    return $text;
+                }
+
+                $lines = explode("\n", $text);
+                foreach ($lines as $i => $line) {
+                    if (isset($this->dropLines[$line])) {
+                        unset($lines[$i]);
+                    }
+                }
+
+                return implode("\n", $lines);
+            }
+
+            /**
+             * Reads the partition layout and the foreign keys, once per
+             * database and only once its schema is selected — which is not
+             * yet the case when dumpDatabase() runs.
+             */
+            private function prepare(): void
+            {
+                if ($this->prepared) {
+                    return;
+                }
+                $this->prepared = true;
+
+                $schema = \Adminer\idf_escape(\Adminer\get_schema());
+
+                // relispartition is PostgreSQL 10+; older servers get no rows.
+                $rows = \Adminer\get_rows(
+                    "SELECT c.relname, c.relkind, c.relispartition, pn.nspname AS parent_ns, p.relname AS parent,
+    pg_get_expr(c.relpartbound, c.oid) AS bound,
+    CASE WHEN c.relkind = 'p' THEN pg_get_partkeydef(c.oid) END AS partkey
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+LEFT JOIN pg_inherits i ON i.inhrelid = c.oid AND c.relispartition
+LEFT JOIN pg_class p ON p.oid = i.inhparent
+LEFT JOIN pg_namespace pn ON pn.oid = p.relnamespace
+WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p') AND (c.relkind = 'p' OR c.relispartition)",
+                    null,
+                    ''
+                );
+                foreach ($rows as $row) {
+                    if ($row['relkind'] === 'p') {
+                        $this->partitioned[$row['relname']] = true;
+                    }
+                    if ($this->truthy($row['relispartition']) && $row['parent'] !== null) {
+                        $this->partitions[$row['relname']] = "CREATE TABLE $schema." . \Adminer\idf_escape($row['relname'])
+                            . ' PARTITION OF ' . \Adminer\idf_escape($row['parent_ns']) . '.' . \Adminer\idf_escape($row['parent'])
+                            . ' ' . $row['bound']
+                            . ($row['partkey'] !== null ? ' PARTITION BY ' . $row['partkey'] : '');
+                    }
+                }
+
+                $this->prepareForeignKeys($schema);
+            }
+
+            /**
+             * Sets the foreign keys straight for the tables upstream gets
+             * wrong — partitioned tables, and any table holding a constraint
+             * the server cloned from a parent one (a partition's inherited
+             * keys; the per-partition copies of a key that references a
+             * partitioned table). Upstream keys its list by name, so those
+             * copies can even overwrite the real key.
+             *
+             * What upstream would print is rebuilt with its own function and
+             * compared with the constraints that were declared: lines only it
+             * has are filtered out, lines only the server has are written
+             * after the tables.
+             */
+            private function prepareForeignKeys(string $schema): void
+            {
+                // conparentid is PostgreSQL 11+; older servers get no rows.
+                $tables = \Adminer\get_rows(
+                    "SELECT c.relname, c.relkind
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p')
+    AND (c.relkind = 'p' OR EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conrelid = c.oid AND k.contype = 'f' AND k.conparentid <> 0))",
+                    null,
+                    ''
+                );
+
+                $selected = \Adminer\DB === '' ? null : (array) ($_POST['tables'] ?? []);
+                foreach ($tables as $row) {
+                    $table = $row['relname'];
+                    if ($selected !== null && !in_array($table, $selected, true)) {
+                        continue;
+                    }
+
+                    $adminer = array_filter(explode("\n", \Adminer\foreign_keys_sql($table)));
+                    $server = [];
+                    $keys = \Adminer\get_rows(
+                        "SELECT conname, condeferrable::int AS deferrable, pg_get_constraintdef(oid) AS definition
+FROM pg_constraint
+WHERE conrelid = " . \Adminer\driver()->tableOid($table) . " AND contype = 'f' AND conparentid = 0
+ORDER BY conname",
+                        null,
+                        ''
+                    );
+                    foreach ($keys as $key) {
+                        $server[] = 'ALTER TABLE ' . ($row['relkind'] === 'p' ? '' : 'ONLY ') . "$schema." . \Adminer\idf_escape($table)
+                            . ' ADD CONSTRAINT ' . \Adminer\idf_escape($key['conname']) . " $key[definition] "
+                            . ($key['deferrable'] ? 'DEFERRABLE' : 'NOT DEFERRABLE') . ';';
+                    }
+
+                    foreach (array_diff($adminer, $server) as $line) {
+                        $this->dropLines[$line] = true;
+                    }
+                    $missing = array_diff($server, $adminer);
+                    if ($missing) {
+                        $this->deferred .= implode("\n", $missing) . "\n\n";
+                    }
+                }
+            }
+
+            private function rewrite(string $dump): string
+            {
+                $routines = !empty($_POST['routines']);
+                if ($routines) {
+                    $dump = $this->withServerRoutines($dump);
+                }
+
+                if (empty($_POST['table_style']) && !$routines && empty($_POST['types'])) {
+                    return $dump;
+                }
+
+                $schema = \Adminer\get_schema();
+                $head = '';
+                foreach ($this->extensions() as $extension) {
+                    $head .= 'CREATE EXTENSION IF NOT EXISTS ' . \Adminer\idf_escape($extension)
+                        . ' WITH SCHEMA ' . \Adminer\idf_escape($schema) . ";\n";
+                }
+                // As pg_dump does: a function body naming a table created
+                // further down must not be checked while the routines load.
+                $required = !$routines && !empty($_POST['table_style']) ? $this->requiredRoutines() : '';
+                if (($routines || $required !== '') && $dump !== '') {
+                    $head .= "SET check_function_bodies = false;\n";
+                }
+                if ($required !== '') {
+                    $head .= "\n" . $required;
+                }
+                if ($head === '') {
+                    return $dump;
+                }
+
+                // Mirrors the export loop: use_sql() plus ";\n\n", only when a
+                // database style is chosen.
+                $style = $_POST['db_style'] ?? '';
+                $connect = $style !== '' ? \Adminer\use_sql($this->db, $style) . ";\n\n" : '';
+                $at = $connect !== '' && str_starts_with($dump, $connect) ? strlen($connect) : 0;
+
+                return substr_replace($dump, "$head\n", $at, 0);
+            }
+
+            /**
+             * Rebuilds each routine exactly the way the export loop did and
+             * swaps that text for the server's definition — or for nothing,
+             * when an extension owns it. Matching the generated statement
+             * rather than parsing the dump keeps a function body that happens
+             * to contain SQL from ever being cut.
+             *
+             * A routine taking or returning a table's row type (SETOF recipe)
+             * cannot be created before that table, and Adminer prints routines
+             * first — those are held back and written once the tables are.
+             * Trigger functions never are, so the triggers still find them.
+             *
+             * CREATE OR REPLACE, with no DROP in front: a DROP fails outright
+             * on a trigger function still in use, and on a name that is
+             * overloaded.
+             */
+            private function withServerRoutines(string $dump): string
+            {
+                // prokind is PostgreSQL 11+; on anything older this returns no
+                // rows and the dump stays as Adminer wrote it.
+                $rows = \Adminer\get_rows(
+                    'SELECT r.specific_name AS "SPECIFIC_NAME", r.routine_type AS "ROUTINE_TYPE", r.routine_name AS "ROUTINE_NAME",
+    EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = \'pg_proc\'::regclass AND d.objid = p.oid AND d.deptype = \'e\') AS extension,
+    CASE WHEN p.prokind <> \'a\' THEN pg_get_functiondef(p.oid) END AS definition,
+    EXISTS (
+        SELECT 1 FROM pg_type t
+        LEFT JOIN pg_type e ON e.oid = t.typelem
+        WHERE t.oid = ANY (COALESCE(p.proallargtypes, p.proargtypes::oid[]) || p.prorettype)
+            AND (t.typrelid <> 0 OR e.typrelid <> 0)
+    ) AS uses_table
+FROM information_schema.routines r
+JOIN pg_proc p ON p.oid = substring(r.specific_name from \'_([0-9]+)$\')::oid
+WHERE r.routine_schema = current_schema()',
+                    null,
+                    ''
+                );
+
+                $drop = ($_POST['db_style'] ?? '') !== 'DROP+CREATE';
+                foreach ($rows as $row) {
+                    $type = $row['ROUTINE_TYPE'];
+                    $name = $row['ROUTINE_NAME'];
+                    $adminer = ($drop ? "DROP $type IF EXISTS " . \Adminer\idf_escape($name) . ";;\n" : '')
+                        . \Adminer\create_routine($type, ['name' => $name] + \Adminer\routine($row['SPECIFIC_NAME'], $type))
+                        . ";\n\n";
+                    $at = strpos($dump, $adminer);
+                    if ($at === false) {
+                        continue;
+                    }
+
+                    $server = '';
+                    if ($this->truthy($row['extension'])) {
+                        // the extension creates it
+                    } elseif ($row['definition'] === null) {
+                        $server = '-- Could not export aggregate ' . $name . "\n\n";
+                    } elseif ($this->truthy($row['uses_table'])) {
+                        $this->deferred .= rtrim($row['definition']) . ";\n\n";
+                    } else {
+                        $server = rtrim($row['definition']) . ";\n\n";
+                    }
+                    $dump = substr_replace($dump, $server, $at, strlen($adminer));
+                }
+
+                return $dump;
+            }
+
+            /**
+             * The routines the tables cannot be created without — named in a
+             * column default, a CHECK or an index expression — for a dump
+             * made with Routines unticked. Upstream's form unticks it on its
+             * own: it re-derives the box from Events, which PostgreSQL does
+             * not have, so opening Export from a table page clears it. A
+             * table whose DEFAULT is uuid_generate_v7() then fails to import.
+             */
+            private function requiredRoutines(): string
+            {
+                $definitions = \Adminer\get_vals(
+                    "SELECT pg_get_functiondef(p.oid)
+FROM pg_proc p
+WHERE p.pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = current_schema())
+    AND p.prokind IN ('f', 'p')
+    AND EXISTS (
+        SELECT 1 FROM pg_depend d
+        WHERE d.refclassid = 'pg_proc'::regclass AND d.refobjid = p.oid
+            AND d.classid IN ('pg_attrdef'::regclass, 'pg_constraint'::regclass, 'pg_class'::regclass)
+    )
+    AND NOT EXISTS (SELECT 1 FROM pg_depend e WHERE e.classid = 'pg_proc'::regclass AND e.objid = p.oid AND e.deptype = 'e')
+ORDER BY p.proname, p.oid"
+                );
+
+                $sql = '';
+                foreach ($definitions as $definition) {
+                    $sql .= rtrim($definition) . ";\n\n";
+                }
+
+                return $sql;
+            }
+
+            /** pgsql returns a boolean column as 't', PDO as a bool */
+            private function truthy($value): bool
+            {
+                return in_array($value, ['t', true, 1, '1'], true);
+            }
+
+            /** @return list<string> extensions installed into the exported schema */
+            private function extensions(): array
+            {
+                return \Adminer\get_vals(
+                    "SELECT e.extname
+FROM pg_extension e
+JOIN pg_namespace n ON n.oid = e.extnamespace
+WHERE n.nspname = current_schema() AND e.extname <> 'plpgsql'
+ORDER BY e.extname"
+                );
+            }
+        }
+
+        $plugins =[new Theme(), new PageAssets(), new LoginDefaults(), new SshCard(), new PgDump()];
         foreach (plugin_names() as $name) {
             array_push($plugins, ...load($name));
         }
