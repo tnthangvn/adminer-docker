@@ -79,7 +79,7 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_REGION_NAME: ${MINIO_REGION_NAME}
-    command: server /data --console-address :9001 --console-port 9001
+    command: server /data --console-address :9001
 
 volumes:
   adminer-tunnels:
