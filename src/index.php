@@ -141,6 +141,53 @@ namespace Instrument {
         return $tunnels;
     }
 
+    /**
+     * Sends a single uploaded import file down the "From server" path.
+     *
+     * For an upload, Adminer reads the whole file into one string and, after
+     * every statement, copies what is left of it — quadratic in the file
+     * size: a 182 MB dump spent 45 of its 50 s of parsing in those copies.
+     * The server-file path reads 100 kB at a time instead, so each copy is a
+     * statement or so long. Setting webfile reroutes the upload there, and
+     * importServerPath() points it at the uploaded file.
+     *
+     * The file is opened through compress.zlib://, which reads a gzip and a
+     * plain file alike, so it is moved to "<tmp>.gz" — Adminer appends the .gz
+     * itself when the bare path does not exist. Several files at once are
+     * left to Adminer, which concatenates them.
+     *
+     * @return string|null the path to hand importServerPath(), once rerouted
+     */
+    function stream_upload(): ?string
+    {
+        static $path = false;
+        if ($path !== false) {
+            return $path;
+        }
+        $path = null;
+
+        $file = $_FILES['sql_file'] ?? null;
+        if (
+            !isset($_GET['import']) || ($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !empty($_POST['webfile'])
+            || !is_array($file['tmp_name'] ?? null) || count($file['tmp_name']) !== 1
+            || ($file['error'][0] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
+            || !extension_loaded('zlib')
+        ) {
+            return null;
+        }
+
+        $tmp = $file['tmp_name'][0];
+        if (!move_uploaded_file($tmp, "$tmp.gz")) {
+            return null;
+        }
+        // PHP only removes the upload from where it put it.
+        register_shutdown_function(static fn() => @unlink("$tmp.gz"));
+
+        $_POST['webfile'] = '1';
+
+        return $path = $tmp;
+    }
+
     function build(): \Adminer\Plugins
     {
         drivers();
@@ -737,6 +784,24 @@ namespace Instrument {
          * It runs before every other plugin and returns null unless it wrote
          * the statement itself, so their dump hooks still fire.
          */
+        /** Points the server-file import at an upload, see stream_upload(). */
+        final class StreamImport extends \Adminer\Plugin
+        {
+            private bool $used = false;
+
+            public function importServerPath()
+            {
+                // Once for the import itself; the form printed after it
+                // should still name the real server file, not the upload.
+                if ($this->used) {
+                    return null;
+                }
+                $this->used = true;
+
+                return stream_upload();
+            }
+        }
+
         final class PgDump extends \Adminer\Plugin
         {
             /** output-buffer level of the preamble buffer, while it is open */
@@ -1211,7 +1276,7 @@ ORDER BY e.extname"
             }
         }
 
-        $plugins =[new Theme(), new PageAssets(), new LoginDefaults(), new SshCard(), new PgDump()];
+        $plugins =[new Theme(), new PageAssets(), new LoginDefaults(), new SshCard(), new StreamImport(), new PgDump()];
         foreach (plugin_names() as $name) {
             array_push($plugins, ...load($name));
         }
@@ -1241,6 +1306,10 @@ namespace {
     // into, and Adminer reads that the moment it is parsed.
     require_once __DIR__ . '/ssh.php';
     \Instrument\Ssh\handle();
+
+    // Before adminer.php too: it decides between upload and server file as
+    // soon as the import page runs.
+    \Instrument\stream_upload();
 
     require __DIR__ . '/adminer.php';
 }

@@ -97,6 +97,13 @@ Still out of reach: aggregates, `GENERATED ALWAYS AS IDENTITY` columns, and
 `\connect` in a `DROP+CREATE` database dump, which only `psql` understands. For
 a database with those, `pg_dump` is the tool.
 
+Import is faster too: a single uploaded file (`.sql` or `.sql.gz`) is read
+100 kB at a time, the way the "From server" file is, instead of whole. Upstream
+copies what is left of an upload after every statement, so its parse time grows
+with the square of the file size — a 182 MB PostgreSQL dump took 71 s to import
+that way and takes 25 s now. Several files picked at once still go through
+upstream's path.
+
 ## Databases behind SSH
 
 Adminer has no SSH of its own, and no PHP driver can be handed a tunnelled
