@@ -829,6 +829,9 @@ namespace Instrument {
             /** statements held until every table exists */
             private string $deferred = '';
 
+            /** @var array<string, array<string, string>> table => CHECK name => clause */
+            private array $checks = [];
+
             private function active(): bool
             {
                 return \Adminer\JUSH === 'pgsql' && ($_POST['format'] ?? '') === 'sql';
@@ -888,7 +891,7 @@ namespace Instrument {
                 $sql = $this->withServerDefaults($table, $sql);
                 // information_schema gives a CHECK that is one function call
                 // without its parentheses, and "CHECK pos(qty)" is a syntax error.
-                foreach (\Adminer\driver()->checkConstraints($table) as $name => $clause) {
+                foreach ($this->checks[$table] ?? [] as $name => $clause) {
                     if (!str_starts_with($clause, '(')) {
                         $check = 'CONSTRAINT ' . \Adminer\idf_escape($name) . ' CHECK ';
                         $sql = str_replace($check . $clause, $check . "($clause)", $sql);
@@ -906,10 +909,99 @@ namespace Instrument {
 
             public function dumpData($table, $style, $query)
             {
+                if (!$this->active() || $table === '') {
+                    return null;
+                }
                 // A partitioned table's rows come out with its partitions.
                 // Read through the parent they would be written twice, and the
                 // first time into a table with no partition to take them yet.
-                return $this->active() && isset($this->partitioned[$table]) ? true : null;
+                if (isset($this->partitioned[$table])) {
+                    return true;
+                }
+                if ($style !== 'INSERT' && $style !== 'TRUNCATE+INSERT') {
+                    return null;
+                }
+
+                $this->writeInserts($table, $style, $query);
+
+                return true;
+            }
+
+            /**
+             * Upstream's INSERT writer, byte for byte, without its per-value
+             * cost — two thirds of a large export went there:
+             *
+             *   - it reads $generated[$column] on an empty array for every
+             *     value, and each "Undefined array key" warning runs Adminer's
+             *     error handler and a regex;
+             *   - it matches every value's column type against two regexes,
+             *     where once per column will do;
+             *   - fetch_field() resolves each column's table with a query of
+             *     its own (pg_field_table), only for the name the row's keys
+             *     already carry.
+             */
+            private function writeInserts(string $table, string $style, string $query): void
+            {
+                if ($style === 'TRUNCATE+INSERT') {
+                    echo \Adminer\truncate_sql($table) . ";\n";
+                }
+
+                $connection = \Adminer\connection();
+                $result = $connection->query($query, 1);
+                if (!$result) {
+                    echo '-- ' . str_replace("\n", ' ', $connection->error) . "\n";
+
+                    return;
+                }
+
+                $fields = \Adminer\fields($table);
+                $numeric = \Adminer\number_type();
+                $max = 1048576;                              // upstream's packet size
+                $insert = '';
+                $buffer = '';
+                $plain = [];                                 // column => written unquoted when numeric
+                $skip = [];                                  // generated columns
+
+                while ($row = $result->fetch_assoc()) {
+                    if ($insert === '') {
+                        $columns = [];
+                        foreach (array_keys($row) as $name) {
+                            $field = $fields[$name] ?? [];
+                            if (!empty($field['generated'])) {
+                                $skip[$name] = true;
+                                continue;
+                            }
+                            $columns[] = \Adminer\idf_escape($name);
+                            $plain[$name] = preg_match($numeric, $field['type'] ?? '')
+                                && !preg_match('~\[~', $field['full_type'] ?? '');
+                        }
+                        $insert = 'INSERT INTO ' . \Adminer\table($table) . ' (' . implode(', ', $columns) . ') VALUES';
+                    }
+
+                    foreach ($row as $name => $value) {
+                        if (isset($skip[$name])) {
+                            unset($row[$name]);
+                        } elseif ($value === null) {
+                            $row[$name] = 'NULL';
+                        } elseif (!$plain[$name] || !is_numeric($value)) {
+                            $row[$name] = $connection->quote($value);
+                        }
+                    }
+
+                    $tuple = "\n(" . implode(",\t", $row) . ')';
+                    if ($buffer === '') {
+                        $buffer = $insert . $tuple;
+                    } elseif (strlen($buffer) + 4 + strlen($tuple) + 2 < $max) {
+                        $buffer .= ",$tuple";
+                    } else {
+                        echo $buffer . ";\n";
+                        $buffer = $insert . $tuple;
+                    }
+                }
+
+                if ($buffer !== '') {
+                    echo $buffer . ";\n";
+                }
             }
 
             public function dumpFooter()
@@ -1057,6 +1149,22 @@ WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p') AND (c.relkind = 
                             . ' ' . $row['bound']
                             . ($row['partkey'] !== null ? ' PARTITION BY ' . $row['partkey'] : '');
                     }
+                }
+
+                // Upstream's own query, for the whole schema at once instead of
+                // once per table: information_schema is slow to read, and this
+                // was a tenth of the export.
+                $this->checks = [];
+                foreach (\Adminer\get_rows(
+                    "SELECT t.TABLE_NAME, c.CONSTRAINT_NAME, CHECK_CLAUSE
+FROM INFORMATION_SCHEMA.CHECK_CONSTRAINTS c
+JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS t ON c.CONSTRAINT_SCHEMA = t.CONSTRAINT_SCHEMA AND c.CONSTRAINT_NAME = t.CONSTRAINT_NAME
+WHERE c.CONSTRAINT_SCHEMA = " . \Adminer\q($_GET['ns'] != '' ? $_GET['ns'] : \Adminer\DB) . " AND CHECK_CLAUSE NOT LIKE '% IS NOT NULL'",
+                    null,
+                    ''
+                ) as $row) {
+                    $row = array_change_key_case($row);
+                    $this->checks[$row['table_name']][$row['constraint_name']] = $row['check_clause'];
                 }
 
                 $this->prepareForeignKeys($schema);

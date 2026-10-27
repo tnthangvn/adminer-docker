@@ -104,6 +104,12 @@ with the square of the file size — a 182 MB PostgreSQL dump took 71 s to impor
 that way and takes 25 s now. Several files picked at once still go through
 upstream's path.
 
+And so is a PostgreSQL SQL export, with the same output byte for byte: the
+INSERTs are written without upstream's per-value overhead (an "Undefined array
+key" warning and two regexes for every value), and the CHECK constraints are
+read once per schema instead of once per table. The same 233-table, 191 MB
+database exports in 4.2 s instead of 7.5 s.
+
 ## Databases behind SSH
 
 Adminer has no SSH of its own, and no PHP driver can be handed a tunnelled
