@@ -6,7 +6,7 @@ plugin set turned on by default, and a theme built for reading dense tables.
 |                     | `adminer:latest` | `adminer-instrument` |
 | ------------------- | ---------------- | -------------------- |
 | unpacked rootfs     | 116 MB           | **35 MB**            |
-| base                | `php:8.4-cli-alpine` (docker-php toolchain) | `alpine:3.22` + `php84` from apk |
+| base                | `php:8.4-cli-alpine` (docker-php toolchain) | `alpine:3.23` + `php85` from apk |
 | concurrency         | 1 request at a time | 4 workers (`PHP_CLI_SERVER_WORKERS`) |
 | drivers             | MySQL, PgSQL (PDO), SQLite, dblib, ODBC | MySQL, PgSQL (**native + PDO**), SQLite, **MongoDB** |
 | plugins             | none, unless you set `ADMINER_PLUGINS` | 16 on by default |
@@ -509,7 +509,7 @@ Rebuild only when you want the changes baked into the image.
 ## Layout
 
 ```
-Dockerfile              multi-stage: upstream adminer -> alpine + php84
+Dockerfile              multi-stage: upstream adminer -> alpine + php85
 php.ini                 runtime settings (limits, opcache, cookie flags)
 src/index.php           bootstrap: plugin loading, theme, login prefill
 src/adminer.php         upstream 5.4.1, copied at build time

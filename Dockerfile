@@ -2,13 +2,13 @@
 
 # Adminer Instrument
 # ------------------
-# Upstream Adminer, restructured: Alpine + php84 straight from apk instead of
+# Upstream Adminer, restructured: Alpine + php85 straight from apk instead of
 # the docker-php toolchain, only the database drivers anyone actually asks for,
 # a theme served through the css() hook so nothing is written at runtime, and a
 # multi-worker built-in server instead of the single-threaded default.
 
 ARG ADMINER_VERSION=5.4.1
-ARG ALPINE_VERSION=3.22
+ARG ALPINE_VERSION=3.23
 
 # --- upstream source ---------------------------------------------------------
 # Taken from the official image so the PHP payload is byte-for-byte the release
@@ -36,36 +36,35 @@ LABEL org.opencontainers.image.title="Adminer Instrument" \
       org.opencontainers.image.source="https://github.com/vrana/adminer"
 
 RUN apk add --no-cache \
-        php84 \
-        php84-ctype \
-        php84-fileinfo \
-        php84-iconv \
-        php84-mbstring \
-        php84-opcache \
-        php84-openssl \
-        php84-session \
+        php85 \
+        php85-ctype \
+        php85-fileinfo \
+        php85-iconv \
+        php85-mbstring \
+        php85-openssl \
+        php85-session \
         # drivers: PostgreSQL (native + PDO), MySQL/MariaDB, SQLite, MongoDB
-        php84-pdo \
-        php84-pgsql \
-        php84-pdo_pgsql \
-        php84-mysqli \
-        php84-mysqlnd \
-        php84-pdo_mysql \
-        php84-sqlite3 \
-        php84-pdo_sqlite \
-        php84-pecl-mongodb \
+        php85-pdo \
+        php85-pgsql \
+        php85-pdo_pgsql \
+        php85-mysqli \
+        php85-mysqlnd \
+        php85-pdo_mysql \
+        php85-sqlite3 \
+        php85-pdo_sqlite \
+        php85-pecl-mongodb \
         # export formats
-        php84-bz2 \
-        php84-zip \
+        php85-bz2 \
+        php85-zip \
         # SSH tunnels to databases behind a bastion (see src/entrypoint.sh).
         # ~2 MB, and dormant unless ADMINER_SSH_TUNNELS is set.
         openssh-client \
         sshpass \
-    && ln -sf /usr/bin/php84 /usr/local/bin/php \
+    && ln -sf /usr/bin/php85 /usr/local/bin/php \
     && addgroup -S -g "${HOST_GID}" adminer \
     && adduser -S -u "${HOST_UID}" -G adminer -H -h /app adminer
 
-COPY --chown=root:root php.ini /etc/php84/conf.d/99-instrument.ini
+COPY --chown=root:root php.ini /etc/php85/conf.d/99-instrument.ini
 
 WORKDIR /app
 

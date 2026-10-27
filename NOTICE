@@ -28,7 +28,7 @@ GPL 2.0:    https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 Alpine Linux and PHP
 --------------------
 https://alpinelinux.org/  ·  https://www.php.net/
-The base image and the php84 packages carry their own licences, unmodified.
+The base image and the php85 packages carry their own licences, unmodified.
 PHP is under the PHP License 3.01.
 
 
