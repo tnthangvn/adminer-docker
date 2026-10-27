@@ -42,6 +42,7 @@ docker run -d -p 9006:8080 adminer-instrument
 | `ADMINER_SSH_UI` | `on` | `off` removes the tunnel card from the login page |
 | `ADMINER_SSH_CONFIG_DIR` | `/ssh` | Where a mounted `~/.ssh` is read from |
 | `ADMINER_SSH_PROFILES` | `/data/tunnels.json` | Where saved tunnels are kept |
+| `ADMINER_PERMANENT_KEY` | `/data/adminer.key` | Key that encrypts "Permanent login" passwords — see below |
 | `ADMINER_SSH_TUNNELS` | — | Tunnels opened at startup — see below |
 | `ADMINER_SSH_KEY` | — | Default private key for those startup tunnels |
 | `ADMINER_SSH_KNOWN_HOSTS` | — | Host keys to pin; without it, first key seen is trusted |
@@ -197,6 +198,16 @@ The file is shared by everyone who can reach the page, the same way
 `~/.ssh/config` is shared by everyone who can read it. The tunnels themselves
 are not: each browser opens, keeps alive and closes its own. Move it with
 `ADMINER_SSH_PROFILES`.
+
+### Logins that survive a restart
+
+Tick **Permanent login** and the login stays in the list under the login form
+for 30 days, across a closed browser, an expired session and `up --build`.
+The password is kept in a cookie in your browser, encrypted with a key in
+`/data/adminer.key`; neither half alone gives it back. Upstream keeps that key
+in the temp dir, which is a tmpfs here, so each restart used to empty the list.
+Logging out of a server drops it from the list. Without the box ticked a login
+lasts as long as the session, as upstream.
 
 ### Using the ~/.ssh you already have
 

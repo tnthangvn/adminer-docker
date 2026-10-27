@@ -802,6 +802,40 @@ namespace Instrument {
             }
         }
 
+        /**
+         * Keeps the "Permanent login" key on the /data volume. Upstream keeps
+         * it in the temp dir, which here is a tmpfs: every restart or rebuild
+         * threw the key away, and with it every saved login on the login page.
+         */
+        final class PermanentKey extends \Adminer\Plugin
+        {
+            public function permanentLogin($create = false)
+            {
+                $file = env('ADMINER_PERMANENT_KEY', '/data/adminer.key');
+                if (!is_writable(dirname($file)) || is_link($file)) {
+                    return null;
+                }
+                if (!$create && !file_exists($file)) {
+                    return '';
+                }
+                $handle = @fopen($file, 'c+');
+                if (!$handle) {
+                    return null;
+                }
+                @chmod($file, 0600);
+                flock($handle, LOCK_EX);
+                $key = stream_get_contents($handle);
+                if ($key === '' || $key === false) {
+                    $key = bin2hex(random_bytes(16));
+                    fwrite($handle, $key);
+                }
+                flock($handle, LOCK_UN);
+                fclose($handle);
+
+                return $key;
+            }
+        }
+
         final class PgDump extends \Adminer\Plugin
         {
             /** output-buffer level of the preamble buffer, while it is open */
@@ -1384,7 +1418,7 @@ ORDER BY e.extname"
             }
         }
 
-        $plugins =[new Theme(), new PageAssets(), new LoginDefaults(), new SshCard(), new StreamImport(), new PgDump()];
+        $plugins =[new Theme(), new PageAssets(), new LoginDefaults(), new SshCard(), new StreamImport(), new PermanentKey(), new PgDump()];
         foreach (plugin_names() as $name) {
             array_push($plugins, ...load($name));
         }
