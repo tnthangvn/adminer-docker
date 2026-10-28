@@ -889,6 +889,17 @@ function profile(string $id): ?array
 }
 
 /**
+ * The database port from the form. Blank means 5432 — the placeholder says so,
+ * the same way a blank database host means localhost.
+ */
+function db_port(array $form): int
+{
+    $port = trim((string) ($form['port'] ?? ''));
+
+    return $port === '' ? 5432 : (ctype_digit($port) ? (int) $port : 0);
+}
+
+/**
  * Creates or replaces a saved tunnel.
  *
  * @param array<string, mixed> $form
@@ -901,7 +912,7 @@ function save_profile(array $form): string
     }
 
     [$sshHost] = split_host((string) ($form['ssh'] ?? ''), 0);
-    $port = (int) ($form['port'] ?? 0);
+    $port = db_port($form);
     if ($sshHost === '') {
         return 'Name the bastion — a Host from ~/.ssh/config, or host[:port].';
     }
@@ -1172,7 +1183,7 @@ function card(array $form): void
     ];
 
     $dbHost = trim((string) ($form['host'] ?? '')) ?: 'localhost';
-    $dbPort = (int) ($form['port'] ?? 0);
+    $dbPort = db_port($form);
     $wanted = (int) ($form['local'] ?? 0);
 
     // Redrawn either way, so the typed values come back — except the secret,

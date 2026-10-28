@@ -631,8 +631,8 @@ namespace Instrument {
                     . $this->field('tunnel[username]', 'SSH username', $was['username'] ?? '',
                         $hosts ? 'from ~/.ssh/config' : '')
                     . $this->field('tunnel[secret]', 'x', '', '', 'password', '', 'ig-secret')
-                    . $this->field('tunnel[host]', 'Database host, as the bastion sees it', $was['host'] ?? '', 'localhost')
-                    . $this->field('tunnel[port]', 'Database port', $was['port'] ?? '', '5432')
+                    . $this->field('tunnel[host]', 'Database host, as the bastion sees it', $was['host'] ?? 'localhost', 'localhost')
+                    . $this->field('tunnel[port]', 'Database port', $was['port'] ?? '5432', '5432')
                     . $this->field('tunnel[local]', 'Local port (optional)', $was['local'] ?: '', 'picked for you')
                     . "<p class='ig-acts'>"
                     . (\Instrument\Ssh\saving() ? "<button type='submit' name='tunnel[save]' value='1'>"
