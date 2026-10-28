@@ -174,6 +174,10 @@ does not know. They are listed in full rather than filtered down to the ones
 that look like bastions: a `Host` that only ever serves git today is still a
 machine with a port you might want tomorrow.
 
+A config split across files is read the way ssh reads it: every `Include`
+is followed, so `Include ~/.ssh/acme/config` adds that file's hosts, and the
+keys in `~/.ssh/acme/` are offered alongside the top-level ones.
+
 Opening a tunnel and logging in are deliberately two acts rather than one. It
 is the shape the job already had — `ssh -L` in one terminal, Adminer pointed at
 127.0.0.1 in the other — and keeping it is what makes a tunnel worth having:
@@ -262,7 +266,10 @@ obvious enough to leave to chance:
   per-user config through `getpwuid()`, not `$HOME`, and expands `~` the same
   way — so a mounted config would simply be ignored, and its
   `IdentityFile ~/.ssh/id_rsa` would point at the image's read-only `/app` and
-  fail with `no such identity`.
+  fail with `no such identity`. A path spelled out on the host
+  (`/home/you/.ssh/...`) and a relative `Include` are pointed at the staged
+  copy the same way, in every config file under the mount, subdirectories
+  included.
 
 `ADMINER_SSH_CONFIG_DIR` moves the mount point if `/ssh` is inconvenient.
 

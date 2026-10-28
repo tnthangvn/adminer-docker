@@ -148,7 +148,7 @@ function home(): string
     @chmod($dot, 0700);
 
     $source = env('ADMINER_SSH_CONFIG_DIR', '/ssh');
-    if (!is_dir($source) || !($names = @scandir($source))) {
+    if (!is_dir($source) || !($names = mounted_files($source))) {
         return $home;
     }
 
@@ -168,9 +168,6 @@ function home(): string
 
     foreach ($names as $name) {
         $from = "$source/$name";
-        if ($name[0] === '.' || !is_file($from)) {
-            continue;
-        }
         // A private key is 0600 and belongs to whoever made it, so a mounted
         // ~/.ssh is unreadable to a container running as anyone else — see
         // staging_error(), which is what says so out loud.
@@ -181,16 +178,17 @@ function home(): string
         if (filesize($from) > 512 * 1024) {
             continue;
         }
+        if (dirname($name) !== '.' && !is_dir("$dot/" . dirname($name))) {
+            @mkdir("$dot/" . dirname($name), 0700, true);
+        }
         if (!@copy($from, "$dot/$name")) {
             continue;
         }
         @chmod("$dot/$name", 0600);
 
-        if ($name === 'config') {
-            // `~` and ssh's own %d both mean "the home ssh thinks you have",
-            // which is not this one. Spell it out instead.
+        if (!is_key_file($name, "$dot/$name") && !in_array(basename($name), ['known_hosts', 'authorized_keys'], true)) {
             $text = (string) @file_get_contents("$dot/$name");
-            @file_put_contents("$dot/$name", str_replace(['~/', '%d/'], "$home/", $text));
+            @file_put_contents("$dot/$name", staged_paths($text, $home));
             @chmod("$dot/$name", 0600);
         }
     }
@@ -199,6 +197,65 @@ function home(): string
     @file_put_contents($stamp, $version);
 
     return $home;
+}
+
+/**
+ * Every file in a mounted ~/.ssh, as paths relative to it, subdirectories
+ * included: a config split per project (`Include ~/.ssh/acme/config`) keeps
+ * its keys next to it. Dot files and anything deeper than four levels are
+ * left behind.
+ *
+ * @return list<string>
+ */
+function mounted_files(string $root, string $prefix = '', int $depth = 0): array
+{
+    $files = [];
+    foreach ((array) @scandir($root . ($prefix === '' ? '' : "/$prefix")) as $name) {
+        if ($name === '' || $name[0] === '.') {
+            continue;
+        }
+        $relative = $prefix === '' ? $name : "$prefix/$name";
+        if (is_file("$root/$relative")) {
+            $files[] = $relative;
+        } elseif ($depth < 4 && is_dir("$root/$relative") && !is_link("$root/$relative")) {
+            array_push($files, ...mounted_files($root, $relative, $depth + 1));
+        }
+    }
+
+    return $files;
+}
+
+/** A private key says so in its first line; its .pub half is not one. */
+function is_key_file(string $name, string $file): bool
+{
+    return !str_ends_with($name, '.pub')
+        && !in_array(basename($name), ['config', 'known_hosts', 'authorized_keys'], true)
+        && str_contains((string) @file_get_contents($file, false, null, 0, 200), 'PRIVATE KEY');
+}
+
+/**
+ * Points a staged config at the staged copies.
+ *
+ * `~` and ssh's own %d both mean "the home ssh thinks you have", which is not
+ * this one, and neither is the host's own `/home/you/.ssh/` that a config
+ * written on the host spells out. A relative Include is resolved by ssh
+ * against that same wrong home, so it is anchored here too.
+ */
+function staged_paths(string $text, string $home): string
+{
+    $text = (string) preg_replace_callback('~^(\s*Include\s+)(.+)$~mi', function (array $m) use ($home) {
+        $paths = preg_split('~\s+~', trim($m[2]), -1, PREG_SPLIT_NO_EMPTY);
+        foreach ($paths as &$path) {
+            if (!preg_match('#^(/|~|%d/)#', $path)) {
+                $path = "$home/.ssh/$path";
+            }
+        }
+
+        return $m[1] . implode(' ', $paths);
+    }, $text);
+    $text = (string) preg_replace('~(?<=[\s"\'=])/(?:[^\s"\'/]+/)*\.ssh/~', "$home/.ssh/", $text);
+
+    return str_replace(['~/', '%d/'], "$home/", $text);
 }
 
 /**
@@ -217,13 +274,9 @@ function home(): string
 function stage_identities(string $dot): void
 {
     $keys = [];
-    foreach ((array) @scandir($dot) as $name) {
-        $file = "$dot/$name";
-        if (!is_file($file) || str_ends_with($name, '.pub') || in_array($name, ['config', 'known_hosts', 'authorized_keys'], true)) {
-            continue;
-        }
-        if (str_contains((string) @file_get_contents($file, false, null, 0, 200), 'PRIVATE KEY')) {
-            $keys[] = $file;
+    foreach (mounted_files($dot) as $name) {
+        if (is_key_file($name, "$dot/$name")) {
+            $keys[] = "$dot/$name";
         }
     }
     if (!$keys) {
@@ -260,9 +313,9 @@ function staging_error(): string
     }
 
     $unreadable = [];
-    foreach ((array) @scandir($source) as $name) {
+    foreach (mounted_files($source) as $name) {
         $from = "$source/$name";
-        if ($name[0] !== '.' && is_file($from) && !is_readable($from)) {
+        if (!is_readable($from)) {
             $unreadable[] = $from;
         }
     }
@@ -284,7 +337,8 @@ function config_file(): string
 }
 
 /**
- * Host aliases from the staged config, for the login form to offer.
+ * Host aliases from the staged config, for the login form to offer — and from
+ * every file it Includes, the way ssh reads them.
  *
  * Patterns are skipped: `Host *` is settings for everything, not a bastion you
  * can pick.
@@ -293,13 +347,31 @@ function config_file(): string
  */
 function config_hosts(): array
 {
-    $file = home() . '/.ssh/config';
-    if (!is_readable($file)) {
-        return [];
-    }
-
     $hosts = [];
+    $seen = [];
+    read_hosts(home() . '/.ssh/config', $hosts, $seen, 0);
+
+    return array_keys($hosts);
+}
+
+/** @param array<string, true> $hosts @param array<string, true> $seen */
+function read_hosts(string $file, array &$hosts, array &$seen, int $depth): void
+{
+    // ssh itself gives up on Include past 16 levels; a loop is the usual cause.
+    if ($depth > 16 || isset($seen[$file]) || !is_file($file) || !is_readable($file)) {
+        return;
+    }
+    $seen[$file] = true;
+
     foreach ((array) @file($file) as $line) {
+        if (preg_match('~^\s*Include\s+(.+)$~i', (string) $line, $m)) {
+            foreach (preg_split('~\s+~', trim($m[1]), -1, PREG_SPLIT_NO_EMPTY) as $pattern) {
+                foreach ((array) @glob($pattern) as $included) {
+                    read_hosts((string) $included, $hosts, $seen, $depth + 1);
+                }
+            }
+            continue;
+        }
         if (!preg_match('~^\s*Host\s+(.+)$~i', (string) $line, $m)) {
             continue;
         }
@@ -309,8 +381,6 @@ function config_hosts(): array
             }
         }
     }
-
-    return array_keys($hosts);
 }
 
 /** Has ssh anything of its own to authenticate with — a config, or a key? */
@@ -331,7 +401,7 @@ function identities(): bool
 }
 
 /**
- * The private keys staged from the mount, by file name.
+ * The private keys staged from the mount, by path under it (`acme/id_rsa`).
  *
  * What makes a file a private key here is that it says so: a `.pub` is its
  * public half, `config` and `known_hosts` are not keys at all, and everything
@@ -343,13 +413,8 @@ function private_keys(): array
 {
     $dot = home() . '/.ssh';
     $keys = [];
-    foreach ((array) @scandir($dot) as $name) {
-        $file = "$dot/$name";
-        if (!is_file($file) || str_ends_with($name, '.pub')
-            || in_array($name, ['config', 'known_hosts', 'authorized_keys'], true)) {
-            continue;
-        }
-        if (str_contains((string) @file_get_contents($file, false, null, 0, 200), 'PRIVATE KEY')) {
+    foreach (mounted_files($dot) as $name) {
+        if (is_key_file($name, "$dot/$name")) {
             $keys[] = $name;
         }
     }

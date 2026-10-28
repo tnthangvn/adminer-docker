@@ -81,8 +81,10 @@ export HOME
 CONFIG_DIR="${ADMINER_SSH_CONFIG_DIR:-/ssh}"
 SSH_CONFIG=''
 if [ -d "$CONFIG_DIR" ]; then
-    for file in "$CONFIG_DIR"/*; do
-        [ -f "$file" ] || continue
+    # Subdirectories too: a config split per project (`Include ~/.ssh/acme/config`)
+    # keeps its keys next to it.
+    find "$CONFIG_DIR" -maxdepth 5 -name '.*' ! -path "$CONFIG_DIR" -prune -o -type f -print |
+    while IFS= read -r file; do
         # A private key is 0600 and belongs to whoever made it, so a mounted
         # ~/.ssh is unreadable to a container running as anyone else. Say so:
         # skipping it quietly turns into "no such identity" much later.
@@ -90,20 +92,27 @@ if [ -d "$CONFIG_DIR" ]; then
             log "warning: cannot read $file — run this container as the uid that owns it"
             continue
         fi
-        cp "$file" "$SSH_HOME/.ssh/" 2>/dev/null || true
-    done
-    chmod 600 "$SSH_HOME"/.ssh/* 2>/dev/null || true
-    if [ -r "$SSH_HOME/.ssh/config" ]; then
+        target="$SSH_HOME/.ssh/${file#"$CONFIG_DIR"/}"
+        mkdir -p "$(dirname "$target")"
+        cp "$file" "$target" 2>/dev/null || continue
+        chmod 600 "$target"
+        case $target in *.pub|*/known_hosts*|*/authorized_keys) continue ;; esac
+        grep -q 'PRIVATE KEY' "$target" 2>/dev/null && continue
         # ssh finds the per-user config through getpwuid(), not $HOME, and
         # expands `~` the same way — so a mounted config would be ignored and
         # its `IdentityFile ~/.ssh/id_rsa` would point at the image's read-only
-        # /app. Hence -F below, and this rewrite.
-        sed -i "s|~/|$SSH_HOME/|g; s|%d/|$SSH_HOME/|g" "$SSH_HOME/.ssh/config"
-    fi
+        # /app. Hence -F below, and this rewrite: `~`, %d, the host's own
+        # /home/you/.ssh/, and a relative Include all mean the staged copy.
+        sed -i -E \
+            -e "s#^([[:space:]]*[Ii]nclude[[:space:]]+)([^/~%[:space:]])#\\1$SSH_HOME/.ssh/\\2#" \
+            -e "s#([[:space:]\"'=])/([^[:space:]\"'/]+/)*\\.ssh/#\\1$SSH_HOME/.ssh/#g" \
+            -e "s#~/#$SSH_HOME/#g; s#%d/#$SSH_HOME/#g" "$target"
+    done
+    find "$SSH_HOME/.ssh" -type d -exec chmod 700 {} +
     # And for a host the config does not name, ssh's built-in default
     # identities point at that same unusable home. Name the staged keys.
-    for key in "$SSH_HOME"/.ssh/*; do
-        case $key in *.pub|*/config|*/known_hosts|*/authorized_keys) continue ;; esac
+    find "$SSH_HOME/.ssh" -type f | sort | while IFS= read -r key; do
+        case $key in *.pub|*/config|*/known_hosts*|*/authorized_keys) continue ;; esac
         [ -f "$key" ] && grep -ql 'PRIVATE KEY' "$key" 2>/dev/null || continue
         [ -s "$SSH_HOME/.ssh/config" ] || printf '\n' >> "$SSH_HOME/.ssh/config"
         printf 'Host *\n  IdentityFile %s\n' "$key" >> "$SSH_HOME/.ssh/config"
