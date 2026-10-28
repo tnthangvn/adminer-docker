@@ -803,6 +803,24 @@ namespace Instrument {
         }
 
         /**
+         * Lets the drivers in ADMINER_PASSWORDLESS log in with no password.
+         *
+         * Upstream refuses an empty password for every driver. For Redis that
+         * refuses the usual local setup and protects nothing: a Redis with no
+         * requirepass answers anyone who can reach its port, and the driver
+         * still checks with PING that it really asks for no password.
+         */
+        final class Passwordless extends \Adminer\Plugin
+        {
+            public function login($login, $password)
+            {
+                $drivers = preg_split('~[\s,]+~', env('ADMINER_PASSWORDLESS', 'redis'), -1, PREG_SPLIT_NO_EMPTY);
+
+                return $password === '' && in_array(\Adminer\DRIVER, $drivers, true) ? true : null;
+            }
+        }
+
+        /**
          * Keeps the "Permanent login" key on the /data volume. Upstream keeps
          * it in the temp dir, which here is a tmpfs: every restart or rebuild
          * threw the key away, and with it every saved login on the login page.
@@ -1418,7 +1436,7 @@ ORDER BY e.extname"
             }
         }
 
-        $plugins =[new Theme(), new PageAssets(), new LoginDefaults(), new SshCard(), new StreamImport(), new PermanentKey(), new PgDump()];
+        $plugins =[new Theme(), new PageAssets(), new LoginDefaults(), new SshCard(), new StreamImport(), new Passwordless(), new PermanentKey(), new PgDump()];
         foreach (plugin_names() as $name) {
             array_push($plugins, ...load($name));
         }

@@ -42,6 +42,7 @@ docker run -d -p 9006:8080 adminer-instrument
 | `ADMINER_SSH_UI` | `on` | `off` removes the tunnel card from the login page |
 | `ADMINER_SSH_CONFIG_DIR` | `/ssh` | Where a mounted `~/.ssh` is read from |
 | `ADMINER_SSH_PROFILES` | `/data/tunnels.json` | Where saved tunnels are kept |
+| `ADMINER_PASSWORDLESS` | `redis` | Drivers that may log in with an empty password; empty string for none |
 | `ADMINER_PERMANENT_KEY` | `/data/adminer.key` | Key that encrypts "Permanent login" passwords — see below |
 | `ADMINER_SSH_TUNNELS` | — | Tunnels opened at startup — see below |
 | `ADMINER_SSH_KEY` | — | Default private key for those startup tunnels |
